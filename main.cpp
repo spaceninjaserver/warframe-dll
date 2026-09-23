@@ -105,10 +105,12 @@ static FARPROC og_WTSRegisterSessionNotification;
 static FARPROC og_WTSUnRegisterSessionNotification;
 static FARPROC og_WTSFreeMemory;
 static FARPROC og_WTSQuerySessionInformationA;
+static FARPROC og_WTSQuerySessionInformationW;
 extern "C" __declspec(dllexport) void WTSRegisterSessionNotification() { og_WTSRegisterSessionNotification(); }
 extern "C" __declspec(dllexport) void WTSUnRegisterSessionNotification() { og_WTSUnRegisterSessionNotification(); }
 extern "C" __declspec(dllexport) void WTSFreeMemory() { og_WTSFreeMemory(); }
 extern "C" __declspec(dllexport) void WTSQuerySessionInformationA() { og_WTSQuerySessionInformationA(); }
+extern "C" __declspec(dllexport) void WTSQuerySessionInformationW() { og_WTSQuerySessionInformationW(); }
 
 using GetFileVersionInfoA_t = BOOL(*)(LPCSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData);
 //using GetFileInformationByHandle_t = BOOL(*)(HANDLE hFile, LPBY_HANDLE_FILE_INFORMATION lpFileInformation);
@@ -1142,7 +1144,7 @@ static luau_CFunction lua_SquadSetCountdownTimer_og;
 
 static int lua_SquadSetCountdownTimer_detour(luau_State* L)
 {
-	if (skip_mission_start_timer && !prohibit_skip_mission_start_timer && L->intop[1].type == LUAU_NUMBER && L->intop[1].value.as_float == 5.9f)
+	if (skip_mission_start_timer && !prohibit_skip_mission_start_timer && L->intop[1].isType(LUAU_NUMBER) && L->intop[1].value.as_float == 5.9f)
 	{
 		L->intop[1].value.as_float = 0.0f;
 	}
@@ -1454,7 +1456,7 @@ static luau_CFunction lua_FlashMgr_GetConfigBool_og;
 
 static int lua_FlashMgr_GetConfigBool_detour(luau_State* L)
 {
-	SOUP_IF_LIKELY (L->intop[1].type == LUAU_STRING)
+	SOUP_IF_LIKELY (L->intop[1].isType(LUAU_STRING))
 	{
 		if (autologin && !did_auto_login)
 		{
@@ -1465,7 +1467,7 @@ static int lua_FlashMgr_GetConfigBool_detour(luau_State* L)
 				conout << "Reporting Client.AutoLogin as true" << std::endl;
 #endif
 				L->outtop[-1].value.as_bool = true;
-				L->outtop[-1].type = LUAU_BOOL;
+				L->outtop[-1].setType(LUAU_BOOL);
 				return 1;
 			}
 		}
@@ -1479,7 +1481,7 @@ static int lua_FlashMgr_GetConfigBool_detour(luau_State* L)
 				conout << "Reporting Server.FastLoad as true" << std::endl;
 #endif
 				L->outtop[-1].value.as_bool = true;
-				L->outtop[-1].type = LUAU_BOOL;
+				L->outtop[-1].setType(LUAU_BOOL);
 				return 1;
 			}
 		}
@@ -1523,7 +1525,7 @@ static void handle_set_global(luau_State* L, uint32_t hash)
 
 	if (hash == wf_hash(str_gRegion.c_str()))
 	{
-		regionmgr = L->outtop[-1].type == LUAU_USERDATA ? static_cast<RegionMgr*>(L->outtop[-1].getObject()) : nullptr;
+		regionmgr = L->outtop[-1].isType(LUAU_USERDATA) ? static_cast<RegionMgr*>(L->outtop[-1].getObject()) : nullptr;
 #if LOGGING
 		conout << " (gRegion) = " << regionmgr;
 		//conout << " " << resolve_string_handle(regionmgr->type->getPathHandle());
@@ -1533,35 +1535,35 @@ static void handle_set_global(luau_State* L, uint32_t hash)
 	}
 	else if (hash == wf_hash(str_gFlashMgr.c_str()))
 	{
-		flashmgr = L->outtop[-1].type == LUAU_USERDATA ? L->outtop[-1].getObject() : nullptr;
+		flashmgr = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gFlashMgr) = " << flashmgr;
 #endif
 	}
 	else if (hash == wf_hash(str_gGameData.c_str()))
 	{
-		gamedata = L->outtop[-1].type == LUAU_USERDATA ? L->outtop[-1].getObject() : nullptr;
+		gamedata = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gGameData) = " << gamedata;
 #endif
 	}
 	else if (hash == wf_hash(str_gPlayerProfileMgr.c_str()))
 	{
-		profilemgr = L->outtop[-1].type == LUAU_USERDATA ? L->outtop[-1].getObject() : nullptr;
+		profilemgr = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gPlayerProfileMgr) = " << profilemgr;
 #endif
 	}
 	else if (hash == wf_hash(str_gClient.c_str()))
 	{
-		gClient = L->outtop[-1].type == LUAU_USERDATA ? L->outtop[-1].getObject() : nullptr;
+		gClient = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gClient) = " << gClient;
 #endif
 	}
 	else if (hash == wf_hash(str_gMatchingService.c_str()))
 	{
-		matchingservice = L->outtop[-1].type == LUAU_USERDATA ? *(void**)(L->outtop[-1].value.as_uintptr + 0x18) : nullptr;
+		matchingservice = L->outtop[-1].isType(LUAU_USERDATA) ? *(void**)(L->outtop[-1].value.as_uintptr + 0x18) : nullptr;
 #if LOGGING
 		conout << " (gMatchingService) = " << matchingservice;
 #endif
@@ -1870,7 +1872,7 @@ static int lua_FlashInstance_GetStringVariable_detour(luau_State* L)
 				if (auto pBlock = scr->findChatSendSubscription(current_draft))
 				{
 					block |= *pBlock;
-					if (L->intop[-3].type == LUAU_NIL) // Heuristic to determine if the message was just submitted
+					if (L->intop[-3].isType(LUAU_NIL)) // Heuristic to determine if the message was just submitted
 					{
 						scr->events.emplace_back(OWF_EVT_SUBMIT_CHAT_MESSAGE, (uint32_t)*pBlock, current_draft);
 					}
@@ -1890,7 +1892,7 @@ static int lua_FlashInstance_GetStringVariable_detour(luau_State* L)
 			int i = 0;
 			while (--i > -20)
 			{
-				if (L->outtop[i].type == LUAU_TABLE)
+				if (L->outtop[i].isType(LUAU_TABLE))
 				{
 					ObfusString name("mPanelList");
 					luau_pushstring(L, name.c_str());
@@ -4839,7 +4841,12 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 
 	if (have_scripting)
 	{
-		if (game_version >= GV(39, 0, 0))
+		if (game_version >= GV(43, 0, 0))
+		{
+			SIG_INST("48 89 5C 24 18 57 48 83 EC 20 0F B7 41 50 48 8B D9 66 FF C0 49 63 F8"); // U43
+			luauD_call = Module(nullptr).range.scan(sig_inst).as<luauD_call_t>();
+		}
+		else if (game_version >= GV(39, 0, 0))
 		{
 			SIG_INST("40 53 57 48 83 EC 28 0F B7 41 50 48 8B D9 66 FF C0 49 63 F8");
 			luauD_call = Module(nullptr).range.scan(sig_inst).as<luauD_call_t>();
@@ -5020,6 +5027,7 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 			og_WTSUnRegisterSessionNotification = GetProcAddress(og_wtsapi32, "WTSUnRegisterSessionNotification");
 			og_WTSFreeMemory = GetProcAddress(og_wtsapi32, "WTSFreeMemory");
 			og_WTSQuerySessionInformationA = GetProcAddress(og_wtsapi32, "WTSQuerySessionInformationA");
+			og_WTSQuerySessionInformationW = GetProcAddress(og_wtsapi32, "WTSQuerySessionInformationW");
 		}
 
 		{

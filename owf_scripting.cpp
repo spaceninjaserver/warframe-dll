@@ -103,6 +103,7 @@ void owfScript::init()
 
 	luau_GlobalState::error_longjump_data_offset = g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/luau_GlobalState_error_longjump_data.json"), game_version);
 	luau_GlobalState::panic_func_offset = g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/luau_GlobalState_panic_func.json"), game_version);
+	luau_type_shift = (game_version >= GV(43, 0, 0)) ? 1 : 0;
 }
 
 static ObfusString runtime_script_name("Script Runtime");
@@ -653,7 +654,7 @@ owfScript::owfScript()
 		{
 			luaL_error(L, ObfusString("insufficient space"));
 		}
-		luau_L->outtop->type = LUAU_NIL;
+		luau_L->outtop->setType(LUAU_NIL);
 		luau_L->outtop++;
 		return 0;
 	});
@@ -666,7 +667,7 @@ owfScript::owfScript()
 			luaL_error(L, ObfusString("insufficient space"));
 		}
 		luau_L->outtop->value.as_bool = lua_toboolean(L, 1);
-		luau_L->outtop->type = LUAU_BOOL;
+		luau_L->outtop->setType(LUAU_BOOL);
 		luau_L->outtop++;
 		return 0;
 	});
@@ -679,7 +680,7 @@ owfScript::owfScript()
 			luaL_error(L, ObfusString("insufficient space"));
 		}
 		luau_L->outtop->value.as_bool = (uint32_t)luaL_checkinteger(L, 1);
-		luau_L->outtop->type = LUAU_BOOL;
+		luau_L->outtop->setType(LUAU_BOOL);
 		luau_L->outtop++;
 		return 0;
 	});
@@ -751,7 +752,7 @@ owfScript::owfScript()
 		luau_pushobject(luau_L, obj);
 		/*luau_obj_buf[3] = &obj->self_pointer;
 		luau_L->outtop->value.as_uintptr = reinterpret_cast<uintptr_t>(&luau_obj_buf[0]);
-		luau_L->outtop->type = LUAU_USERDATA;
+		luau_L->outtop->setType(LUAU_USERDATA);
 		luau_L->outtop++;*/
 		/*if (***(void****)(luau_L->outtop[-1].value.as_uintptr + 0x18) != obj)
 		{
@@ -850,7 +851,7 @@ owfScript::owfScript()
 			luaL_error(L, ObfusString("insufficient space"));
 		}
 		luau_L->outtop->value.as_uintptr = luaL_checkinteger(L, 1);
-		luau_L->outtop->type = LUAU_USERDATA;
+		luau_L->outtop->setType(LUAU_USERDATA);
 		luau_L->outtop++;
 		return 0;
 	});
@@ -863,7 +864,7 @@ owfScript::owfScript()
 			luaL_error(L, ObfusString("insufficient space"));
 		}
 		luau_L->outtop->value.as_uintptr = luaL_checkinteger(L, 1);
-		luau_L->outtop->type = LUAU_LIGHTUSERDATA;
+		luau_L->outtop->setType(LUAU_LIGHTUSERDATA);
 		luau_L->outtop++;
 		return 0;
 	});
@@ -955,7 +956,7 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
-		SOUP_IF_UNLIKELY (luau_L->outtop[-1].type != LUAU_BOOL)
+		SOUP_IF_UNLIKELY (!luau_L->outtop[-1].isType(LUAU_BOOL))
 		{
 			luaL_error(L, ObfusString("unexpected type"));
 		}
@@ -966,7 +967,7 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
-		SOUP_IF_UNLIKELY (luau_L->outtop[-1].type != LUAU_NUMBER)
+		SOUP_IF_UNLIKELY (!luau_L->outtop[-1].isType(LUAU_NUMBER))
 		{
 			luaL_error(L, ObfusString("unexpected type"));
 		}
@@ -977,7 +978,7 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
-		SOUP_IF_UNLIKELY (luau_L->outtop[-1].type != LUAU_STRING)
+		SOUP_IF_UNLIKELY (!luau_L->outtop[-1].isType(LUAU_STRING))
 		{
 			luaL_error(L, ObfusString("unexpected type"));
 		}
@@ -989,7 +990,7 @@ owfScript::owfScript()
 	// Unused
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
-		SOUP_IF_UNLIKELY (luau_L->outtop[-1].type != LUAU_USERDATA)
+		SOUP_IF_UNLIKELY (!luau_L->outtop[-1].isType(LUAU_USERDATA))
 		{
 			luaL_error(L, ObfusString("unexpected type"));
 		}
@@ -1000,7 +1001,7 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
-		SOUP_IF_UNLIKELY (luau_L->outtop[-1].type != LUAU_USERDATA)
+		SOUP_IF_UNLIKELY (!luau_L->outtop[-1].isType(LUAU_USERDATA))
 		{
 			luaL_error(L, ObfusString("unexpected type"));
 		}
@@ -1012,7 +1013,7 @@ owfScript::owfScript()
 	// Unused
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
-		SOUP_IF_UNLIKELY (luau_L->outtop[-1].type != LUAU_USERDATA)
+		SOUP_IF_UNLIKELY (!luau_L->outtop[-1].isType(LUAU_USERDATA))
 		{
 			luaL_error(L, ObfusString("unexpected type"));
 		}
@@ -1023,7 +1024,7 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
-		SOUP_IF_UNLIKELY (luau_L->outtop[-1].type != LUAU_USERDATA)
+		SOUP_IF_UNLIKELY (!luau_L->outtop[-1].isType(LUAU_USERDATA))
 		{
 			luaL_error(L, ObfusString("unexpected type"));
 		}
@@ -1034,7 +1035,7 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
-		SOUP_IF_UNLIKELY (luau_L->outtop[-1].type != LUAU_FUNCTION || !reinterpret_cast<luau_Closure*>(luau_L->outtop[-1].value.as_uintptr)->isC)
+		SOUP_IF_UNLIKELY (!luau_L->outtop[-1].isType(LUAU_FUNCTION) || !reinterpret_cast<luau_Closure*>(luau_L->outtop[-1].value.as_uintptr)->isC)
 		{
 			luaL_error(L, ObfusString("unexpected type"));
 		}
@@ -1046,7 +1047,7 @@ owfScript::owfScript()
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
 		const auto idx = (uint8_t)luaL_checkinteger(L, 1);
-		SOUP_IF_UNLIKELY (luau_L->outtop[-1].type != LUAU_FUNCTION)
+		SOUP_IF_UNLIKELY (!luau_L->outtop[-1].isType(LUAU_FUNCTION))
 		{
 			luaL_error(L, ObfusString("unexpected type"));
 		}
@@ -1061,7 +1062,7 @@ owfScript::owfScript()
 			luaL_error(L, ObfusString("insufficient space"));
 		}
 		luau_TValue* tval = &arr[idx];
-		if (tval->type == LUAU_TUPVAL)
+		if (tval->isType(LUAU_TUPVAL))
 		{
 			tval = tval->value.gc->uv.v;
 		}
@@ -1074,7 +1075,7 @@ owfScript::owfScript()
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
 		const auto idx = (uint8_t)luaL_checkinteger(L, 1);
-		SOUP_IF_UNLIKELY (luau_L->outtop[-2].type != LUAU_FUNCTION)
+		SOUP_IF_UNLIKELY (!luau_L->outtop[-2].isType(LUAU_FUNCTION))
 		{
 			luaL_error(L, ObfusString("unexpected type"));
 		}
@@ -1089,7 +1090,7 @@ owfScript::owfScript()
 			luaL_error(L, ObfusString("insufficient space"));
 		}
 		luau_TValue* tval = &arr[idx];
-		if (tval->type == LUAU_TUPVAL)
+		if (tval->isType(LUAU_TUPVAL))
 		{
 			tval = tval->value.gc->uv.v;
 		}
@@ -1098,12 +1099,12 @@ owfScript::owfScript()
 	});
 	OWF_SET_GLOBAL(L, "ivkr_set_upvalue");
 
-	OWF_SET_GLOBAL_INT(L, "IVKR_NIL", LUAU_NIL);
-	OWF_SET_GLOBAL_INT(L, "IVKR_BOOL", LUAU_BOOL);
-	OWF_SET_GLOBAL_INT(L, "IVKR_NUMBER", LUAU_NUMBER);
-	OWF_SET_GLOBAL_INT(L, "IVKR_STRING", LUAU_STRING);
-	OWF_SET_GLOBAL_INT(L, "IVKR_TABLE", LUAU_TABLE);
-	OWF_SET_GLOBAL_INT(L, "IVKR_FUNCTION", LUAU_FUNCTION);
+	OWF_SET_GLOBAL_INT(L, "IVKR_NIL", luau_tt(LUAU_NIL));
+	OWF_SET_GLOBAL_INT(L, "IVKR_BOOL", luau_tt(LUAU_BOOL));
+	OWF_SET_GLOBAL_INT(L, "IVKR_NUMBER", luau_tt(LUAU_NUMBER));
+	OWF_SET_GLOBAL_INT(L, "IVKR_STRING", luau_tt(LUAU_STRING));
+	OWF_SET_GLOBAL_INT(L, "IVKR_TABLE", luau_tt(LUAU_TABLE));
+	OWF_SET_GLOBAL_INT(L, "IVKR_FUNCTION", luau_tt(LUAU_FUNCTION));
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
@@ -1114,8 +1115,8 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
-		const auto type = luau_L->getValue(luaL_checkinteger(L, 1))->type;
-		lua_pushboolean(L, type == LUAU_LIGHTUSERDATA || type == LUAU_USERDATA);
+		const auto tval = luau_L->getValue(luaL_checkinteger(L, 1));
+		lua_pushboolean(L, tval->isType(LUAU_LIGHTUSERDATA) || tval->isType(LUAU_USERDATA));
 		return 1;
 	});
 	OWF_SET_GLOBAL(L, "ivkr_isuserdata");
@@ -1573,7 +1574,7 @@ owfScript::owfScript()
 			)
 		{
 			luau_L->outtop->value.as_uintptr = ChatRedux_table;
-			luau_L->outtop->type = LUAU_TABLE;
+			luau_L->outtop->setType(LUAU_TABLE);
 			luau_L->outtop++;
 			lua_pushboolean(L, true);
 		}
@@ -1595,12 +1596,12 @@ owfScript::owfScript()
 		const auto nargs = luaL_checkinteger(L, 1);
 		const auto nresults = luaL_checkinteger(L, 2);
 
-		const auto call_top = luau_L->outtop - (nargs + 1);
+		const auto call_top_offset = luau_savestack(luau_L, luau_L->outtop - (nargs + 1)); // offset, not pointer: the call can reallocate the stack
 
 		luau_error_msg.clear();
 		__try
 		{
-			luauD_call(luau_L, call_top, nresults);
+			luauD_call(luau_L, luau_restorestack(luau_L, call_top_offset), nresults);
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
@@ -1608,6 +1609,10 @@ owfScript::owfScript()
 			{
 				luau_error_msg = ObfusString("low-level exception").str();
 			}
+		}
+		SOUP_IF_LIKELY (nresults >= 0)
+		{
+			luau_L->outtop = luau_restorestack(luau_L, call_top_offset) + nresults;
 		}
 		SOUP_IF_UNLIKELY (!luau_error_msg.empty())
 		{
@@ -2106,6 +2111,7 @@ owfScript::owfScript()
 		std::lock_guard lock(g_repo_mtx);
 
 		OWF_SET_GLOBAL_INT(L, "OWF_CLIENT_HOTFIX", g_repo.hotfix);
+		OWF_SET_GLOBAL_INT(L, "OWF_GAME_VERSION", game_version);
 
 		size_t size;
 		auto data = g_repo.find(soup::joaat::compileTimeHash("OpenWF/runtime.pluto"), size);
