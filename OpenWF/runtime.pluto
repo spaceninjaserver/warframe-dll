@@ -3613,15 +3613,17 @@ local t_functions = {
 		ivkr_pop(1)
 		return ret
 	end,
-	ShowNotification = function(...args)
+	ShowNotification = function(text, icon)
 		ivkr_push_global("_T")
 		ivkr_push_string("ShowNotification")
 		ivkr_gettable(-2)
 
-		for args as arg do
-			ivkr_push_any(arg)
+		if icon == nil and OWF_GAME_VERSION >= 430000 then
+			icon = "DroneComplete" -- U43 requires an icon or it crashes directly
 		end
-		ivkr_call2(#args, 0)
+		ivkr_push_any(text)
+		ivkr_push_any(icon)
+		ivkr_call2(2, 0)
 
 		ivkr_pop(1)
 	end,

@@ -37,10 +37,20 @@ enum luau_Type
 	LUAU_TDEADKEY = 13,
 };
 
+// U43 added a type at tag 5 shifting LUAU_STRING, up by 1
+inline uint32_t luau_type_shift = 0;
+[[nodiscard]] inline uint32_t luau_tt(luau_Type t) noexcept
+{
+	return static_cast<uint32_t>(t) + (t >= LUAU_STRING ? luau_type_shift : 0);
+}
+
 struct luau_TValue
 {
 	/* 0x00 */ luau_Value value;
 	PAD(0x08, 0x0C) uint32_t type;
+
+	[[nodiscard]] bool isType(luau_Type t) const noexcept { return type == luau_tt(t); }
+	void setType(luau_Type t) noexcept { type = luau_tt(t); }
 
 	[[nodiscard]] char* getString() noexcept
 	{
@@ -207,7 +217,7 @@ inline bool luau_push_number(luau_State* luau_L, float value)
 	SOUP_IF_LIKELY (luau_L->outtop != luau_L->stack_last)
 	{
 		luau_L->outtop->value.as_float = value;
-		luau_L->outtop->type = LUAU_NUMBER;
+		luau_L->outtop->type = luau_tt(LUAU_NUMBER);
 		luau_L->outtop++;
 		return true;
 	}
@@ -219,7 +229,7 @@ inline bool luau_push_lightuserdata(luau_State* luau_L, void* value)
 	SOUP_IF_LIKELY (luau_L->outtop != luau_L->stack_last)
 	{
 		luau_L->outtop->value.as_uintptr = reinterpret_cast<uintptr_t>(value);
-		luau_L->outtop->type = LUAU_LIGHTUSERDATA;
+		luau_L->outtop->type = luau_tt(LUAU_LIGHTUSERDATA);
 		luau_L->outtop++;
 		return true;
 	}
