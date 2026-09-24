@@ -1456,12 +1456,13 @@ static luau_CFunction lua_FlashMgr_GetConfigBool_og;
 
 static int lua_FlashMgr_GetConfigBool_detour(luau_State* L)
 {
-	SOUP_IF_LIKELY (L->intop[1].isType(LUAU_STRING))
+	const int i = (game_version >= GV(43, 0, 0)) ? 0 : 1;
+	SOUP_IF_LIKELY (L->intop[i].isType(LUAU_STRING))
 	{
 		if (autologin && !did_auto_login)
 		{
 			ObfusString str("Client.AutoLogin");
-			if (strcmp(L->intop[1].getString(), str.c_str()) == 0)
+			if (strcmp(L->intop[i].getString(), str.c_str()) == 0)
 			{
 #if LOGGING
 				conout << "Reporting Client.AutoLogin as true" << std::endl;
@@ -1475,7 +1476,7 @@ static int lua_FlashMgr_GetConfigBool_detour(luau_State* L)
 		if (alternative_loading)
 		{
 			ObfusString str("Server.FastLoad");
-			if (strcmp(L->intop[1].getString(), str.c_str()) == 0)
+			if (strcmp(L->intop[i].getString(), str.c_str()) == 0)
 			{
 #if LOGGING
 				conout << "Reporting Server.FastLoad as true" << std::endl;
