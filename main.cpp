@@ -2027,10 +2027,36 @@ static void load_metadata_patches()
 	lua_close(L);
 }
 
-static void handle_metadata_read(ObjectType* objectType, GameString* str)
+static unsigned int ObjectType_path_offset;
+static unsigned int ObjectType_name_offset;
+static unsigned int ObjectType_property_text_offset;
+
+static void get_object_type_name(ObjectType* objectType, const char*& path, const char*& name)
 {
-	const char* path = resolve_string_handle(objectType->getPathHandle());
-	const char* name = resolve_string_handle(objectType->name_handle);
+	const auto base = reinterpret_cast<uintptr_t>(objectType);
+	const auto path_entry = *reinterpret_cast<void**>(base + ObjectType_path_offset);
+	if (game_version >= GV(30, 7, 0)) // String handles; before that, C strings.
+	{
+		path = resolve_string_handle(path_entry ? *reinterpret_cast<uint32_t*>(path_entry) : 0);
+		name = resolve_string_handle(*reinterpret_cast<uint32_t*>(base + ObjectType_name_offset));
+	}
+	else
+	{
+		path = path_entry ? *reinterpret_cast<const char**>(path_entry) : "";
+		name = *reinterpret_cast<const char**>(base + ObjectType_name_offset);
+		if (!name)
+		{
+			name = "";
+		}
+	}
+}
+
+template <typename Str>
+static void handle_metadata_read(ObjectType* objectType, Str* str)
+{
+	const char* path;
+	const char* name;
+	get_object_type_name(objectType, path, name);
 
 	uint32_t hash = 0;
 	hash = joaat::partialStr(path, hash);
@@ -2157,14 +2183,26 @@ static void handle_metadata_read(ObjectType* objectType, GameString* str)
 
 static CallsiteHook object_type_serialise_propery_text_hook;
 
-static void object_type_serialise_propery_text_detour(void* a1, GameString* str, int a3, char a4)
+template <typename Str>
+static void object_type_serialise_propery_text_detour(void* a1, Str* str, uint64_t a3, uint64_t a4)
 {
 	ObjectType* objectType;
 	__asm mov objectType, r11;
 
 	handle_metadata_read(objectType, str);
 
-	return reinterpret_cast<decltype(&object_type_serialise_propery_text_detour)>(object_type_serialise_propery_text_hook.original)(a1, str, a3, a4);
+	return reinterpret_cast<decltype(&object_type_serialise_propery_text_detour<Str>)>(object_type_serialise_propery_text_hook.original)(a1, str, a3, a4);
+}
+
+template <typename Str>
+static void object_type_serialise_propery_text_field_detour(void* a1, Str* str, uint64_t a3, uint64_t a4)
+{
+	auto objectType = reinterpret_cast<ObjectType*>(reinterpret_cast<uintptr_t>(str) - ObjectType_property_text_offset);
+
+	Str copy = *str;
+	handle_metadata_read(objectType, &copy);
+
+	return reinterpret_cast<decltype(&object_type_serialise_propery_text_field_detour<Str>)>(object_type_serialise_propery_text_hook.original)(a1, &copy, a3, a4);
 }
 #endif
 
@@ -4179,27 +4217,61 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 #if METADATA_PATCHES && SOUP_BITS == 64
-	if (game_version >= GV(35, 5, 0))
 	{
-		SIG_INST("41 B1 03 48 8D 55 ? 45 33 C0 48 8D 8D ? ? ? ? E8");
-		const Pointer object_type_serialise_propery_text_call = string_pool ? Module(nullptr).range.scan(sig_inst) : nullptr;
+		ObjectType_path_offset = g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/ObjectType_path.json"), game_version);
+		ObjectType_name_offset = g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/ObjectType_name.json"), game_version);
+		const bool can_resolve_names = (game_version < GV(30, 7, 0) || string_pool != nullptr);
+
+		Pointer object_type_serialise_propery_text_call;
+		size_t call_offset = 0;
+		void* detour = nullptr;
+		// Both patterns end with the call that serialises the property text.
+		// >= U30.7: The property text is obtained via a virtual call on the ObjectType.
+		if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/object_type_serialise_propery_text_call.json"), game_version); !sig_inst.bytes.empty())
+		{
+			object_type_serialise_propery_text_call = can_resolve_names ? Module(nullptr).range.scan(sig_inst) : nullptr;
+			call_offset = sig_inst.bytes.size() - 1;
+			if (object_type_serialise_propery_text_call)
+			{
+				uint8_t detour_bytes[] = {
+					0x49, 0x89, 0xF3, // mov r11, rsi
+					/* 3 */ 0x49, 0xBA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // movabs r10, (8 bytes)
+					0x41, 0xFF, 0xE2, // jmp r10
+				};
+				if (game_version >= GV(35, 5, 0))
+				{
+					*(void**)(detour_bytes + 5) = reinterpret_cast<void*>(&object_type_serialise_propery_text_detour<GameString>);
+				}
+				else
+				{
+					*(void**)(detour_bytes + 5) = reinterpret_cast<void*>(&object_type_serialise_propery_text_detour<LegacyGameString>);
+				}
+				detour = memGuard::alloc(sizeof(detour_bytes), memGuard::ACC_RWX);
+				memcpy(detour, detour_bytes, sizeof(detour_bytes));
+			}
+		}
+		// < U30.7: The property text is a field of the ObjectType, so the ObjectType is derived from its address instead.
+		else if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/object_type_serialise_propery_text_field_call.json"), game_version); !sig_inst.bytes.empty())
+		{
+			object_type_serialise_propery_text_call = can_resolve_names ? Module(nullptr).range.scan(sig_inst) : nullptr;
+			call_offset = sig_inst.bytes.size() - 1;
+			ObjectType_property_text_offset = g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/ObjectType_property_text.json"), game_version);
+			if (game_version >= GV(19, 0, 0))
+			{
+				detour = reinterpret_cast<void*>(&object_type_serialise_propery_text_field_detour<LegacyGameString>);
+			}
+			else
+			{
+				detour = reinterpret_cast<void*>(&object_type_serialise_propery_text_field_detour<LegacyGameStringU18>);
+			}
+		}
 #if LOGGING
 		conout << "object_type_serialise_propery_text_call = " << object_type_serialise_propery_text_call.as<void*>() << std::endl;
 #endif
 		SOUP_IF_LIKELY (should_setup_optional_conditional_feature(object_type_serialise_propery_text_call.as<void*>()))
 		{
-			uint8_t detour_bytes[] = {
-				0x49, 0x89, 0xF3, // mov r11, rsi
-				/* 3 */ 0x49, 0xBA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // movabs r10, (8 bytes)
-				0x41, 0xFF, 0xE2, // jmp r10
-			};
-			*(void**)(detour_bytes + 5) = reinterpret_cast<void*>(&object_type_serialise_propery_text_detour);
-
-			void* detour = memGuard::alloc(sizeof(detour_bytes), memGuard::ACC_RWX);
-			memcpy(detour, detour_bytes, sizeof(detour_bytes));
-
 			object_type_serialise_propery_text_hook.detour = detour;
-			object_type_serialise_propery_text_hook.target = object_type_serialise_propery_text_call.add(17).as<void*>();
+			object_type_serialise_propery_text_hook.target = object_type_serialise_propery_text_call.add(call_offset).as<void*>();
 			object_type_serialise_propery_text_hook.code_cave = Module(nullptr).range.scan(CallsiteHook::getCodeCavePattern()).as<void*>();
 #if LOGGING
 			conout << "object_type_serialise_propery_text_hook.code_cave = " << object_type_serialise_propery_text_hook.code_cave << std::endl;
