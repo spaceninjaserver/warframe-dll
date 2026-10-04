@@ -4,7 +4,7 @@
 
 #include <fwd.hpp>
 
-#define BOOTSTRAPPER_TITLE "OpenWF Bootstrapper v0.13.9"
+#define BOOTSTRAPPER_TITLE "OpenWF Bootstrapper v0.13.10"
 
 // Cache tunables for faster access
 inline bool prohibit_skip_mission_start_timer = false;
