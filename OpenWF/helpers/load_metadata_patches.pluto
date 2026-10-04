@@ -151,7 +151,7 @@ elseif not io.exists("OpenWF/Metadata Patches") then
 	io.contents("OpenWF/Metadata Patches/Untitled.txt", owf_repo_find("OpenWF/Metadata Patches.txt"))
 end
 
-for io.listdir("OpenWF/Metadata Patches/") as path do
+for io.listdir("OpenWF/Metadata Patches/", true) as path do
 	if path:sub(-4) == ".txt" then
 		if str := io.contents(path) then
 			load_metadata_patches(str, io.relative(path))

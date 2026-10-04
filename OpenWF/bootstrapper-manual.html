@@ -171,7 +171,7 @@
 	<h2>Label Replacements</h2>
 	<p>Label Replacements are loaded by instantiating the <code>OpenWF/Label Replacements.pluto</code> script. You can modify this script but by default it loads replacements from <code>OpenWF/Label Replacements.cat.txt</code>. As implied by the extension, it uses the <a href="https://github.com/calamity-inc/Soup/blob/senpai/docs/user/cat.md" target="_blank">CaT</a> format. Note that nested nodes are ignored.</p>
 	<h2>Metadata Patches</h2>
-	<p>Metadata Patches are loaded from <code>.txt</code> files in the <code>OpenWF/Metadata Patches/</code> folder.</p>
+	<p>Metadata Patches are loaded from <code>.txt</code> files in the <code>OpenWF/Metadata Patches/</code> folder and its subfolders.</p>
 	<p>They are parsed line by line. If a line starts with <code>/</code>, a new patch for the given absolute path is started.</p>
 	<p>It is possible to have a single patch affect multiple paths by using ampersands. The start of a patch can also take up multiple lines if the ampersand is at the end of the line or the beginning of the next line.</p>
 	<p>For the remaining processing, leading and trailing spaces and tabs are ignored:</p>
