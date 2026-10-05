@@ -5052,7 +5052,8 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 			}
 			else
 			{
-				MessageBoxA(0, "Please don't keep the Bootstrapper DLL (wtsapi32.dll, dwmapi.dll, or version.dll) in the same folder as any executable other than " EXE_NAME ".", BOOTSTRAPPER_TITLE, MB_OK | MB_ICONERROR);
+				std::string msg = proc->name + " cannot start because it loaded the Bootstrapper DLL (wtsapi32.dll, dwmapi.dll, or version.dll). Please don't keep this DLL in the same folder as any executable other than " EXE_NAME ".";
+				MessageBoxA(0, msg.c_str(), BOOTSTRAPPER_TITLE, MB_OK | MB_ICONERROR);
 				return exit(1), FALSE;
 			}
 		}
