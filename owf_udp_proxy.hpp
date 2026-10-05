@@ -24,7 +24,7 @@ struct owfUdpProxy
 			{
 				SOUP_IF_UNLIKELY (!owfUdpProxy::bind())
 				{
-					conout << soup::ObfusString("Failed to bind UDP/6951.").str();
+					conout << "Failed to bind UDP/6951.";
 				}
 			}
 		}

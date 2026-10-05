@@ -3,9 +3,9 @@
 #include <windows.h>
 
 #include <joaat.hpp>
-#include <ObfusString.hpp>
 #include <RenderTarget.hpp>
 #include <Rgb.hpp>
+#include <string.hpp>
 #include <Thread.hpp>
 #include <Window.hpp>
 
@@ -79,7 +79,7 @@ void owfOverlay::init()
 
 			//conout << "Creating our window..." << std::endl;
 			const auto [width, height] = Window(s_game_hwnd).getSize();
-			w = Window::create(ObfusString("OpenWF Overlay"), width, height);
+			w = Window::create("OpenWF Overlay", width, height);
 			if (!overlay_compatibility_mode)
 			{
 				SetParent(w.h, s_game_hwnd);
@@ -92,9 +92,8 @@ void owfOverlay::init()
 				{
 					if (s_prelogin)
 					{
-						ObfusString brand("OpenWF");
-						rt.drawText(10 + 2, 10 + 2, brand, RasterFont::simple8(), Rgb::BLACK, 2);
-						rt.drawText(10, 10, brand, RasterFont::simple8(), Rgb{ 90, 253, 123 }, 2);
+						rt.drawText(10 + 2, 10 + 2, "OpenWF", RasterFont::simple8(), Rgb::BLACK, 2);
+						rt.drawText(10, 10, "OpenWF", RasterFont::simple8(), Rgb{ 90, 253, 123 }, 2);
 
 						std::string at;
 						at.push_back('@');
@@ -106,19 +105,19 @@ void owfOverlay::init()
 						std::string subtext;
 						if (s_unreachable)
 						{
-							subtext = get_overlay_string(ObfusString("unreachable").str());
+							subtext = get_overlay_string("unreachable");
 						}
 						else
 						{
-							if (prohibit_skip_mission_start_timer) { soup::string::listAppend(subtext, get_overlay_string(ObfusString("prohibit_skip_mission_start_timer").str())); }
-							if (prohibit_disable_profanity_filter) { soup::string::listAppend(subtext, get_overlay_string(ObfusString("prohibit_disable_profanity_filter").str())); }
-							if (prohibit_fov_override) { soup::string::listAppend(subtext, get_overlay_string(ObfusString("prohibit_fov_override").str())); }
-							if (prohibit_freecam) { soup::string::listAppend(subtext, get_overlay_string(ObfusString("prohibit_freecam").str())); }
-							if (prohibit_teleport) { soup::string::listAppend(subtext, get_overlay_string(ObfusString("prohibit_teleport").str())); }
-							if (prohibit_scripts) { soup::string::listAppend(subtext, get_overlay_string(ObfusString("prohibit_scripts").str())); }
+							if (prohibit_skip_mission_start_timer) { soup::string::listAppend(subtext, get_overlay_string("prohibit_skip_mission_start_timer")); }
+							if (prohibit_disable_profanity_filter) { soup::string::listAppend(subtext, get_overlay_string("prohibit_disable_profanity_filter")); }
+							if (prohibit_fov_override) { soup::string::listAppend(subtext, get_overlay_string("prohibit_fov_override")); }
+							if (prohibit_freecam) { soup::string::listAppend(subtext, get_overlay_string("prohibit_freecam")); }
+							if (prohibit_teleport) { soup::string::listAppend(subtext, get_overlay_string("prohibit_teleport")); }
+							if (prohibit_scripts) { soup::string::listAppend(subtext, get_overlay_string("prohibit_scripts")); }
 							if (!subtext.empty())
 							{
-								subtext.insert(0, get_overlay_string(ObfusString("prohibit")));
+								subtext.insert(0, get_overlay_string("prohibit"));
 							}
 							else if (auto e = g_server_tunables.strings.find(soup::joaat::compileTimeHash("motd")); e != g_server_tunables.strings.end())
 							{

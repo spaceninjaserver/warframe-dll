@@ -1,7 +1,6 @@
 #include "owf_label_replacements.hpp"
 
 #include <joaat.hpp>
-#include <ObfusString.hpp>
 #include <string.hpp>
 
 #include <lauxlib.h>
@@ -29,7 +28,7 @@ void load_label_replacements()
 			|| lua_pcall(L, 0, 0, 0) != LUA_OK
 			)
 		{
-			owfScript::logNl(lua_type(L, -1) == LUA_TSTRING ? pluto_checkstring(L, -1) : ObfusString("Non-string script error").str());
+			owfScript::logNl(lua_type(L, -1) == LUA_TSTRING ? pluto_checkstring(L, -1) : "Non-string script error");
 		}
 		lua_close(L);
 	}
@@ -44,12 +43,11 @@ void load_label_replacements()
 	L = luaL_newstate();
 	owfScript::openLibs(L);
 
-	ObfusString path("OpenWF/Label Replacements.pluto");
-	if (luaL_loadfile(L, path.c_str()) != LUA_OK
+	if (luaL_loadfile(L, "OpenWF/Label Replacements.pluto") != LUA_OK
 		|| lua_pcall(L, 0, 1, 0) != LUA_OK
 		)
 	{
-		owfScript::logNl(lua_type(L, -1) == LUA_TSTRING ? pluto_checkstring(L, -1) : ObfusString("Non-string script error").str());
+		owfScript::logNl(lua_type(L, -1) == LUA_TSTRING ? pluto_checkstring(L, -1) : "Non-string script error");
 
 		lua_close(L);
 		L = nullptr;

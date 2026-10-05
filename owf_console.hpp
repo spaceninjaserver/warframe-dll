@@ -2,8 +2,6 @@
 
 #include <string>
 
-#include <ObfusString.hpp>
-
 #include "owf_web.hpp" // owf_broadcast_message
 
 struct owfConsole
@@ -45,7 +43,7 @@ struct owfConsole
 				freopen_s(&f, "CONOUT$", "w", stdout);
 			}
 
-			owf_broadcast_message(soup::ObfusString(R"({"console":true})").str());
+			owf_broadcast_message(R"({"console":true})");
 		}
 	}
 
@@ -62,7 +60,7 @@ struct owfConsole
 			FreeConsole();
 			PostMessage(conWnd, WM_CLOSE, 0, 0);
 
-			owf_broadcast_message(soup::ObfusString(R"({"console":false})").str());
+			owf_broadcast_message(R"({"console":false})");
 		}
 	}
 

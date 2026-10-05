@@ -38,7 +38,9 @@
 #include <memGuard.hpp>
 #include <Module.hpp>
 #include <Mutex.hpp>
+#if VERIFY_EXE_SIG
 #include <ObfusString.hpp>
+#endif
 #include <os.hpp>
 #include <Pattern.hpp>
 #include <pattern_macros.hpp>
@@ -169,10 +171,10 @@ extern "C" __declspec(dllexport) BOOL VerQueryValueW(LPCVOID pBlock, LPCWSTR lpS
 
 std::string get_bootstrapper_title()
 {
-	auto title = ObfusString(BOOTSTRAPPER_TITLE).str();
+	std::string title = BOOTSTRAPPER_TITLE;
 	if (const auto hotfix = g_repo.hotfix)
 	{
-		title.append(ObfusString(" hotfix ").str());
+		title.append(" hotfix ");
 		title.append(std::to_string(hotfix));
 	}
 	return title;
@@ -230,10 +232,9 @@ static bool legacy_parse_url_detour(LegacyParsedUrl* out, LegacyGameString* in)
 
 static void internet_connect_detour(uintptr_t a1)
 {
-	ObfusString localhost("127.0.0.1");
 	*reinterpret_cast<HINTERNET*>(a1 + 104) = InternetConnectA(
 		*reinterpret_cast<HINTERNET*>(a1 + 96),
-		localhost.c_str(),
+		"127.0.0.1",
 		client_http_port,
 		"",
 		"",
@@ -289,8 +290,7 @@ static void* winhttp_connect_detour(void* a1, void* a2, int protocol, const char
 #endif
 
 	protocol = 1; // 1 = HTTP, 2 = HTTPS
-	ObfusString localhost("127.0.0.1");
-	host_1 = localhost.c_str();
+	host_1 = "127.0.0.1";
 	port = client_http_port;
 
 	return reinterpret_cast<decltype(&winhttp_connect_detour)>(winhttp_connect_hook.original)(a1, a2, protocol, host_1, port, nullptr, nullptr);
@@ -313,8 +313,8 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 {
 	if (secure_connections)
 	{
-		uri.scheme = ObfusString("http").str();
-		uri.host = ObfusString("127.0.0.1").str();
+		uri.scheme = "http";
+		uri.host = "127.0.0.1";
 		uri.port = client_http_port;
 	}
 	else
@@ -322,7 +322,7 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 		uri.host = server_host;
 		if (strip_tls)
 		{
-			uri.scheme = ObfusString("http").str();
+			uri.scheme = "http";
 			uri.port = http_port;
 		}
 		else
@@ -343,17 +343,17 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 			}
 		}
 	}
-	if (uri.path == ObfusString("/api/inventory.php").str() || uri.path == ObfusString("/api/missionInventoryUpdate.php").str())
+	if (uri.path == "/api/inventory.php" || uri.path == "/api/missionInventoryUpdate.php")
 	{
 		if constexpr (DISABLE_XP_BASED_LEVEL_CAPPING)
 		{
 			if (disabled_xp_based_level_cap)
 			{
-				uri.query.append(ObfusString("&xpBasedLevelCapDisabled=1").str());
+				uri.query.append("&xpBasedLevelCapDisabled=1");
 			}
 		}
 	}
-	else if (uri.path == ObfusString("/api/login.php").str())
+	else if (uri.path == "/api/login.php")
 	{
 		rt = RT_LOGIN;
 		if (auto jr = json::decode(body_data, body_size); jr && jr->isObj())
@@ -361,11 +361,11 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 			if (autologin && !did_auto_login)
 			{
 				did_auto_login = true;
-				if (auto it = jr->reinterpretAsObj().findIt(ObfusString("email").str()); it != jr->reinterpretAsObj().end() && it->second->isStr())
+				if (auto it = jr->reinterpretAsObj().findIt("email"); it != jr->reinterpretAsObj().end() && it->second->isStr())
 				{
 					it->second->reinterpretAsStr().value = autologin_email;
 				}
-				if (auto it = jr->reinterpretAsObj().findIt(ObfusString("password").str()); it != jr->reinterpretAsObj().end() && it->second->isStr())
+				if (auto it = jr->reinterpretAsObj().findIt("password"); it != jr->reinterpretAsObj().end() && it->second->isStr())
 				{
 					it->second->reinterpretAsStr().value = autologin_password;
 				}
@@ -382,7 +382,7 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 				{
 					uri.query.push_back('&');
 				}
-				uri.query.append(ObfusString("buildLabel=").str());
+				uri.query.append("buildLabel=");
 				uri.query.append(build_version, 16);
 				uri.query.push_back('/');
 				if (build_hash[0])
@@ -395,28 +395,28 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 			{
 				uri.query.push_back('&');
 			}
-			uri.query.append(ObfusString("clientMod=").str());
-			uri.query.append(urlenc::encode(ObfusString(BOOTSTRAPPER_TITLE).str()));
+			uri.query.append("clientMod=");
+			uri.query.append(urlenc::encode(BOOTSTRAPPER_TITLE));
 			if (metadata_patches_in_use)
 			{
-				uri.query.append(ObfusString("&metadataPatchesInUse=1").str());
+				uri.query.append("&metadataPatchesInUse=1");
 			}
 		}
 		{
 			std::lock_guard lock(g_server_tunables_mtx);
 			if (auto e = g_server_tunables.strings.find(soup::joaat::compileTimeHash("token")); e != g_server_tunables.strings.end())
 			{
-				uri.query.append(ObfusString("&token=").str());
+				uri.query.append("&token=");
 				uri.query.append(e->second);
 			}
 		}
 	}
-	else if (uri.path == ObfusString("/api/inbox.php").str())
+	else if (uri.path == "/api/inbox.php")
 	{
 		auth_query = uri.query;
 	}
-	else if (uri.path.find(ObfusString("/worldState.php").str()) != std::string::npos
-		|| uri.path == ObfusString("/api/hubInstances").str()
+	else if (uri.path.find("/worldState.php") != std::string::npos
+		|| uri.path == "/api/hubInstances"
 		)
 	{
 		if constexpr (PROVIDE_VERSION_INFO)
@@ -427,7 +427,7 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 				{
 					uri.query.push_back('&');
 				}
-				uri.query.append(ObfusString("buildLabel=").str());
+				uri.query.append("buildLabel=");
 				uri.query.append(build_version, 16);
 				uri.query.push_back('/');
 				if (build_hash[0])
@@ -440,11 +440,11 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 			{
 				uri.query.push_back('&');
 			}
-			uri.query.append(ObfusString("clientMod=").str());
-			uri.query.append(urlenc::encode(ObfusString(BOOTSTRAPPER_TITLE).str()));
+			uri.query.append("clientMod=");
+			uri.query.append(urlenc::encode(BOOTSTRAPPER_TITLE));
 		}
 	}
-	else if (uri.path == ObfusString("/api/hub").str())
+	else if (uri.path == "/api/hub")
 	{
 		rt = RT_HUB;
 
@@ -456,7 +456,7 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 				{
 					uri.query.push_back('&');
 				}
-				uri.query.append(ObfusString("buildLabel=").str());
+				uri.query.append("buildLabel=");
 				uri.query.append(build_version, 16);
 				uri.query.push_back('/');
 				if (build_hash[0])
@@ -469,11 +469,11 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 			{
 				uri.query.push_back('&');
 			}
-			uri.query.append(ObfusString("clientMod=").str());
-			uri.query.append(urlenc::encode(ObfusString(BOOTSTRAPPER_TITLE).str()));
+			uri.query.append("clientMod=");
+			uri.query.append(urlenc::encode(BOOTSTRAPPER_TITLE));
 		}
 	}
-	else if (uri.path == ObfusString("/api/logout.php").str())
+	else if (uri.path == "/api/logout.php")
 	{
 		owfOverlay::onLoggedOut();
 		auth_query.clear();
@@ -482,22 +482,22 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 	{
 		if (auto jr = json::decode(body_data, body_size); jr && jr->isObj())
 		{
-			auto it = jr->reinterpretAsObj().findIt(ObfusString("PS").str());
+			auto it = jr->reinterpretAsObj().findIt("PS");
 			if (it == jr->reinterpretAsObj().end())
 			{
-				it = jr->reinterpretAsObj().findIt(ObfusString("processes").str());
+				it = jr->reinterpretAsObj().findIt("processes");
 			}
 			if (it != jr->reinterpretAsObj().end() && it->second->isStr())
 			{
-				ObfusString msg("W0RFXVN0ZXZlIGxpa2VzIGJpZyBidXR0cw");
+				const char* msg = "W0RFXVN0ZXZlIGxpa2VzIGJpZyBidXR0cw";
 				if (auto sep = it->second->reinterpretAsStr().value.find(';'); sep != std::string::npos && it->second->reinterpretAsStr().value.c_str()[0] == '0') // If PS indicates an anti-cheat detection it will look like "0x1;..." so keep the prefix.
 				{
 					it->second->reinterpretAsStr().value.erase(sep + 1);
-					it->second->reinterpretAsStr().value.append(msg.str());
+					it->second->reinterpretAsStr().value.append(msg);
 				}
 				else
 				{
-					it->second->reinterpretAsStr().value = std::move(msg.str());
+					it->second->reinterpretAsStr().value = msg;
 				}
 				body_buf = jr->encode();
 				body_data = body_buf.data();
@@ -507,7 +507,7 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 	}
 	if (secure_connections)
 	{
-		uri.path = ObfusString("/tls_proxy?").str() + uri.path;
+		uri.path = "/tls_proxy?" + uri.path;
 	}
 }
 
@@ -515,21 +515,21 @@ static std::string process_login_response(const char* data, size_t size)
 {
 	if (auto jr = json::decode(data, size); jr && jr->isObj())
 	{
-		const auto pjId = jr->reinterpretAsObj().find(ObfusString("id").str());
-		const auto pjNonce = jr->reinterpretAsObj().find(ObfusString("Nonce").str());
+		const auto pjId = jr->reinterpretAsObj().find("id");
+		const auto pjNonce = jr->reinterpretAsObj().find("Nonce");
 		if (pjId && pjNonce && pjId->isStr() && pjNonce->isInt())
 		{
-			auth_query = ObfusString("accountId=").str() + pjId->reinterpretAsStr().value + ObfusString("&nonce=").str() + std::to_string(pjNonce->reinterpretAsInt().value);
+			auth_query = "accountId=" + pjId->reinterpretAsStr().value + "&nonce=" + std::to_string(pjNonce->reinterpretAsInt().value);
 #if LOGGING
 			conout << "Constructed auth_query from login response: " << auth_query << std::endl;
 #endif
 			if (secure_connections)
 			{
-				const auto pjIRC = jr->reinterpretAsObj().find(ObfusString("IRC").str());
+				const auto pjIRC = jr->reinterpretAsObj().find("IRC");
 				if (pjIRC && pjIRC->isArr() && pjIRC->reinterpretAsArr().children.size() == 1 && pjIRC->reinterpretAsArr().children[0]->isStr())
 				{
 					g_irc_upstream_host = std::move(pjIRC->reinterpretAsArr().children[0]->reinterpretAsStr().value);
-					pjIRC->reinterpretAsArr().children[0]->reinterpretAsStr().value = ObfusString("127.0.0.1:").str();
+					pjIRC->reinterpretAsArr().children[0]->reinterpretAsStr().value = "127.0.0.1:";
 					pjIRC->reinterpretAsArr().children[0]->reinterpretAsStr().value.append(std::to_string(g_irc_port));
 					return jr->encode();
 				}
@@ -636,7 +636,7 @@ static void* game_http_request_detour(void* a1, uintptr_t request, void* a3)
 		//conout << "hub response: " << std::string(request_body.getData(), request_body.getSize()) << std::endl;
 #endif
 		if (
-			ObfusString prefix("\"udp_proxy_upstream ");
+			std::string_view prefix("\"udp_proxy_upstream ");
 				request_body.getSize() > prefix.size()
 				&& memcmp(request_body.getData(), prefix.data(), prefix.size()) == 0
 			)
@@ -647,7 +647,7 @@ static void* game_http_request_detour(void* a1, uintptr_t request, void* a3)
 				{
 					set_udp_proxy_upstream(std::string(&request_body.getData()[prefix.size()], i - prefix.size()));
 
-					std::string replacement = ObfusString("\"hub 127.0.0.1:6951").str();
+					std::string replacement = "\"hub 127.0.0.1:6951";
 					replacement.append(&request_body.getData()[i], request_body.getSize() - i);
 					//conout << "hub response replacement: " << replacement << std::endl;
 					replace_game_string(request_body, replacement);
@@ -716,7 +716,7 @@ static void* Curl_resolv_detour(void* a1, const char* hostname, int port, bool a
 	conout << "Curl_resolv for " << hostname << ", port " << port << std::endl;
 #endif
 
-	const auto localhost = ObfusString("127.0.0.1").str();
+	const auto localhost = "127.0.0.1";
 
 	const std::string& expected_hostname = secure_connections ? localhost : server_host;
 
@@ -836,13 +836,13 @@ struct owfResolveUdpProxyUpstreamAddressTask : public Task
 static void populate_server_prohibitions_locked(JsonObject& obj)
 {
 	auto arr = soup::make_unique<JsonArray>();
-	if (prohibit_skip_mission_start_timer) { arr->children.emplace_back(soup::make_unique<JsonString>(ObfusString("prohibit_skip_mission_start_timer").str())); }
-	if (prohibit_disable_profanity_filter) { arr->children.emplace_back(soup::make_unique<JsonString>(ObfusString("prohibit_disable_profanity_filter").str())); }
-	if (prohibit_fov_override) { arr->children.emplace_back(soup::make_unique<JsonString>(ObfusString("prohibit_fov_override").str())); }
-	if (prohibit_freecam) { arr->children.emplace_back(soup::make_unique<JsonString>(ObfusString("prohibit_freecam").str())); }
-	if (prohibit_teleport) { arr->children.emplace_back(soup::make_unique<JsonString>(ObfusString("prohibit_teleport").str())); }
-	if (prohibit_scripts) { arr->children.emplace_back(soup::make_unique<JsonString>(ObfusString("prohibit_scripts").str())); }
-	obj.add(ObfusString("prohibitions"), std::move(arr));
+	if (prohibit_skip_mission_start_timer) { arr->children.emplace_back(soup::make_unique<JsonString>("prohibit_skip_mission_start_timer")); }
+	if (prohibit_disable_profanity_filter) { arr->children.emplace_back(soup::make_unique<JsonString>("prohibit_disable_profanity_filter")); }
+	if (prohibit_fov_override) { arr->children.emplace_back(soup::make_unique<JsonString>("prohibit_fov_override")); }
+	if (prohibit_freecam) { arr->children.emplace_back(soup::make_unique<JsonString>("prohibit_freecam")); }
+	if (prohibit_teleport) { arr->children.emplace_back(soup::make_unique<JsonString>("prohibit_teleport")); }
+	if (prohibit_scripts) { arr->children.emplace_back(soup::make_unique<JsonString>("prohibit_scripts")); }
+	obj.add("prohibitions", std::move(arr));
 }
 
 bool set_server_tunables(const char* data, size_t size, bool delta)
@@ -910,7 +910,7 @@ struct owfTunablesTask : public soup::Task
 		: hrt(
 			HttpRequest(
 				server_host + ":" + std::to_string(strip_tls ? http_port : https_port),
-				ObfusString("/custom/tunables.json?clientMod=" BOOTSTRAPPER_TITLE "&buildVersion=").str() + std::string(build_version, 16)
+				"/custom/tunables.json?clientMod=" BOOTSTRAPPER_TITLE "&buildVersion=" + std::string(build_version, 16)
 			),
 			secure_connections ? &Socket::certchain_validator_default : &Socket::certchain_validator_none
 		)
@@ -937,8 +937,8 @@ struct owfTunablesTask : public soup::Task
 
 			if (!ok)
 			{
-				auto msg = get_core_string(ObfusString("tunafail").str());
-				soup::string::replaceAll(msg, ObfusString("|HOST|").str(), hrt.hr.getHost());
+				auto msg = get_core_string("tunafail");
+				soup::string::replaceAll(msg, "|HOST|", hrt.hr.getHost());
 				conout << std::move(msg) << std::endl;
 			}
 
@@ -953,19 +953,19 @@ struct owfTunablesTask : public soup::Task
 void on_got_server_host()
 {
 	string::lower(server_host);
-	if (server_host.find(ObfusString("warframe.com").str()) != std::string::npos)
+	if (server_host.find("warframe.com") != std::string::npos)
 	{
-		server_host = ObfusString("127.0.0.1").str();
+		server_host = "127.0.0.1";
 	}
 
 	{
-		auto msg = get_core_string(ObfusString("gotsh").str());
-		soup::string::replaceAll(msg, ObfusString("|HOST|").str(), server_host);
+		auto msg = get_core_string("gotsh");
+		soup::string::replaceAll(msg, "|HOST|", server_host);
 		conout << msg << std::endl;
 	}
 	if (autologin && !did_auto_login)
 	{
-		conout << get_core_string(ObfusString("alpend")) << std::endl;
+		conout << get_core_string("alpend") << std::endl;
 	}
 
 #if ASK_SERVER_FOR_TUNABLES
@@ -977,7 +977,7 @@ void do_logout()
 {
 	if (!auth_query.empty())
 	{
-		HttpRequest hr(server_host + ":" + std::to_string(https_port), ObfusString("/api/logout.php?").str() + auth_query);
+		HttpRequest hr(server_host + ":" + std::to_string(https_port), "/api/logout.php?" + auth_query);
 		hr.use_tls = true;
 		SOUP_UNUSED(hr.execute(secure_connections ? &Socket::certchain_validator_default : &Socket::certchain_validator_none));
 		auth_query.clear();
@@ -1004,23 +1004,23 @@ static std::string process_args_str(const char* str)
 		bool got_cluster = false;
 		for (const auto& arg : string::explode<std::string>(str, ' '))
 		{
-			if (arg.size() > 10 && arg.substr(0, 10) == ObfusString("-language:").str())
+			if (arg.size() > 10 && arg.substr(0, 10) == "-language:")
 			{
 				got_language = true;
 			}
-			else if (arg.size() > 12 && arg.substr(0, 12) == ObfusString("-languageVO:").str())
+			else if (arg.size() > 12 && arg.substr(0, 12) == "-languageVO:")
 			{
 				got_languageVO = true;
 			}
-			else if (arg.size() > 16 && arg.substr(0, 16) == ObfusString("-graphicsDriver:").str())
+			else if (arg.size() > 16 && arg.substr(0, 16) == "-graphicsDriver:")
 			{
 				got_graphicsDriver = true;
 			}
-			else if (arg.size() > 12 && (arg.substr(0, 12) == ObfusString("-windowMode:").str() || arg.substr(0, 12) == ObfusString("-fullscreen:").str()))
+			else if (arg.size() > 12 && (arg.substr(0, 12) == "-windowMode:" || arg.substr(0, 12) == "-fullscreen:"))
 			{
 				got_windowMode = true;
 			}
-			else if (arg.size() > 9 && arg.substr(0, 9) == ObfusString("-cluster:").str())
+			else if (arg.size() > 9 && arg.substr(0, 9) == "-cluster:")
 			{
 				got_cluster = true;
 			}
@@ -1028,13 +1028,13 @@ static std::string process_args_str(const char* str)
 
 		if (!got_language && !fallback_language.empty())
 		{
-			arguments_to_inject.append(ObfusString("-language:").str());
+			arguments_to_inject.append("-language:");
 			arguments_to_inject.append(fallback_language);
 			arguments_to_inject.push_back(' ');
 		}
 		if (game_version >= GV(39, 0, 0) && !got_languageVO && !fallback_languageVO.empty())
 		{
-			arguments_to_inject.append(ObfusString("-languageVO:").str());
+			arguments_to_inject.append("-languageVO:");
 			arguments_to_inject.append(fallback_languageVO);
 			arguments_to_inject.push_back(' ');
 		}
@@ -1042,20 +1042,20 @@ static std::string process_args_str(const char* str)
 		{
 			if (game_version >= GV(28, 0, 0))
 			{
-				arguments_to_inject.append(ObfusString("-graphicsDriver:").str());
+				arguments_to_inject.append("-graphicsDriver:");
 				arguments_to_inject.append(fallback_graphicsDriver);
 				arguments_to_inject.push_back(' ');
 			}
 			else
 			{
-				arguments_to_inject.append(ObfusString("-dx11:").str());
-				arguments_to_inject.push_back(fallback_graphicsDriver == ObfusString("dx11").str() ? '1' : '0');
+				arguments_to_inject.append("-dx11:");
+				arguments_to_inject.push_back(fallback_graphicsDriver == "dx11" ? '1' : '0');
 				arguments_to_inject.push_back(' ');
 
 				if (game_version >= GV(15, 0, 0))
 				{
-					arguments_to_inject.append(ObfusString("-dx10:").str());
-					arguments_to_inject.push_back(fallback_graphicsDriver == ObfusString("dx10").str() ? '1' : '0');
+					arguments_to_inject.append("-dx10:");
+					arguments_to_inject.push_back(fallback_graphicsDriver == "dx10" ? '1' : '0');
 					arguments_to_inject.push_back(' ');
 				}
 			}
@@ -1065,7 +1065,7 @@ static std::string process_args_str(const char* str)
 			const int max = (game_version >= GV(40, 0, 0)) ? 2 : 1;
 			if (fallback_windowMode <= max)
 			{
-				arguments_to_inject.append(game_version >= GV(40, 0, 0) ? ObfusString("-windowMode:").str() : ObfusString("-fullscreen:").str());
+				arguments_to_inject.append(game_version >= GV(40, 0, 0) ? "-windowMode:" : "-fullscreen:");
 				arguments_to_inject.append(std::to_string(fallback_windowMode));
 				arguments_to_inject.push_back(' ');
 			}
@@ -1074,14 +1074,14 @@ static std::string process_args_str(const char* str)
 		{
 			if (!got_cluster)
 			{
-				arguments_to_inject.append(ObfusString("-cluster:").str());
+				arguments_to_inject.append("-cluster:");
 				arguments_to_inject.append(fallback_cluster);
 				arguments_to_inject.push_back(' ');
 			}
 		}
 		else
 		{
-			arguments_to_inject.append(ObfusString("-webserver:http://dummy.openwf.io/api/ ").str());
+			arguments_to_inject.append("-webserver:http://dummy.openwf.io/api/ ");
 		}
 
 		// This prevents the game from modifying H.Misc.cache by pre-populating the "device id".
@@ -1273,7 +1273,7 @@ static std::string process_name_lookup(const char* data, size_t size)
 		{
 			if (secure_connections)
 			{
-				override = ObfusString("127.0.0.1:").str();
+				override = "127.0.0.1:";
 				override.append(std::to_string(g_irc_port));
 			}
 			else
@@ -1321,16 +1321,15 @@ static bool name_lookup_detour(void* out, T* name, bool a3)
 
 static DetourHook write_to_log_file_hook;
 static void* write_to_log_file_a1 = nullptr;
-static ObfusString log_sep("]: ");
 
 static void write_to_log_file_detour(void* const a1, char* const data, size_t _size)
 {
 	write_to_log_file_a1 = a1;
 	SOUP_IF_LIKELY (_size > 15)
 	{
-		SOUP_IF_LIKELY (auto message = strstr(data + 15, log_sep.c_str()))
+		SOUP_IF_LIKELY (auto message = strstr(data + 15, "]: "))
 		{
-			message += log_sep.size();
+			message += strlen("]: ");
 			size_t size = _size - (message - data);
 
 			if (size > 10)
@@ -1365,8 +1364,7 @@ static void write_to_log_file_detour(void* const a1, char* const data, size_t _s
 				case soup::joaat::compileTimeHash("InitMappin"): // "InitMapping for all devices with bindings ... and filter ..."
 					if (size > 42)
 					{
-						ObfusString sep(" and filter ");
-						if (auto filter = strstr(message + 42, sep.c_str()))
+						if (auto filter = strstr(message + 42, " and filter "))
 						{
 							filter += 12;
 							size -= (filter - message);
@@ -1435,10 +1433,10 @@ void owf_set_build_hash(const char _build_hash[22])
 				expected_ver != nullptr && memcmp(expected_ver, build_version, 16) != 0
 				)
 			{
-				auto msg = get_core_string(ObfusString("badbldlbl"));
-				soup::string::replaceAll(msg, ObfusString("|EXPECTED_VER|").str(), std::string(expected_ver, 16));
-				soup::string::replaceAll(msg, ObfusString("|FOUND_VER|").str(), std::string(build_version, 16));
-				soup::string::replaceAll(msg, ObfusString("|HASH|").str(), std::string(build_hash, 22));
+				auto msg = get_core_string("badbldlbl");
+				soup::string::replaceAll(msg, "|EXPECTED_VER|", std::string(expected_ver, 16));
+				soup::string::replaceAll(msg, "|FOUND_VER|", std::string(build_version, 16));
+				soup::string::replaceAll(msg, "|HASH|", std::string(build_hash, 22));
 
 				const auto msg_utf16 = soup::unicode::utf8_to_utf16(msg);
 				const auto title_utf16 = soup::unicode::utf8_to_utf16(get_bootstrapper_title());
@@ -1461,8 +1459,7 @@ static int lua_FlashMgr_GetConfigBool_detour(luau_State* L)
 	{
 		if (autologin && !did_auto_login)
 		{
-			ObfusString str("Client.AutoLogin");
-			if (strcmp(L->intop[i].getString(), str.c_str()) == 0)
+			if (strcmp(L->intop[i].getString(), "Client.AutoLogin") == 0)
 			{
 #if LOGGING
 				conout << "Reporting Client.AutoLogin as true" << std::endl;
@@ -1475,8 +1472,7 @@ static int lua_FlashMgr_GetConfigBool_detour(luau_State* L)
 
 		if (alternative_loading)
 		{
-			ObfusString str("Server.FastLoad");
-			if (strcmp(L->intop[i].getString(), str.c_str()) == 0)
+			if (strcmp(L->intop[i].getString(), "Server.FastLoad") == 0)
 			{
 #if LOGGING
 				conout << "Reporting Server.FastLoad as true" << std::endl;
@@ -1517,14 +1513,7 @@ static void do_console_to_overlay_transition()
 
 static void handle_set_global(luau_State* L, uint32_t hash)
 {
-	ObfusString str_gRegion("gRegion");
-	ObfusString str_gFlashMgr("gFlashMgr");
-	ObfusString str_gGameData("gGameData");
-	ObfusString str_gPlayerProfileMgr("gPlayerProfileMgr");
-	ObfusString str_gClient("gClient");
-	ObfusString str_gMatchingService("gMatchingService");
-
-	if (hash == wf_hash(str_gRegion.c_str()))
+	if (hash == wf_hash("gRegion"))
 	{
 		regionmgr = L->outtop[-1].isType(LUAU_USERDATA) ? static_cast<RegionMgr*>(L->outtop[-1].getObject()) : nullptr;
 #if LOGGING
@@ -1534,35 +1523,35 @@ static void handle_set_global(luau_State* L, uint32_t hash)
 #endif
 		do_console_to_overlay_transition();
 	}
-	else if (hash == wf_hash(str_gFlashMgr.c_str()))
+	else if (hash == wf_hash("gFlashMgr"))
 	{
 		flashmgr = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gFlashMgr) = " << flashmgr;
 #endif
 	}
-	else if (hash == wf_hash(str_gGameData.c_str()))
+	else if (hash == wf_hash("gGameData"))
 	{
 		gamedata = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gGameData) = " << gamedata;
 #endif
 	}
-	else if (hash == wf_hash(str_gPlayerProfileMgr.c_str()))
+	else if (hash == wf_hash("gPlayerProfileMgr"))
 	{
 		profilemgr = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gPlayerProfileMgr) = " << profilemgr;
 #endif
 	}
-	else if (hash == wf_hash(str_gClient.c_str()))
+	else if (hash == wf_hash("gClient"))
 	{
 		gClient = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gClient) = " << gClient;
 #endif
 	}
-	else if (hash == wf_hash(str_gMatchingService.c_str()))
+	else if (hash == wf_hash("gMatchingService"))
 	{
 		matchingservice = L->outtop[-1].isType(LUAU_USERDATA) ? *(void**)(L->outtop[-1].value.as_uintptr + 0x18) : nullptr;
 #if LOGGING
@@ -1606,7 +1595,7 @@ void populate_autostart_scripts(JsonObject& obj)
 	{
 		arr->children.emplace_back(soup::make_unique<JsonString>(name));
 	}
-	obj.add(ObfusString("autostart_scripts"), std::move(arr));
+	obj.add("autostart_scripts", std::move(arr));
 }
 
 static void populate_running_scripts_locked(JsonObject& obj)
@@ -1616,7 +1605,7 @@ static void populate_running_scripts_locked(JsonObject& obj)
 	{
 		arr->children.emplace_back(soup::make_unique<JsonString>(std::string(scr->name)));
 	}
-	obj.add(ObfusString("running_scripts"), std::move(arr));
+	obj.add("running_scripts", std::move(arr));
 }
 
 static void populate_running_scripts(JsonObject& obj)
@@ -1830,20 +1819,18 @@ static int lua_OpenWebBrowser_detour(luau_State* L)
 #if LOGGING
 	conout << "lua_OpenWebBrowser: " << L->intop[0].getString() << std::endl;
 #endif
-	ObfusString sub("warframe.com");
-	if (strstr(L->intop[0].getString(), sub.c_str()) != nullptr)
+	if (strstr(L->intop[0].getString(), "warframe.com") != nullptr)
 	{
 		// Purchases have a sku; other usages instead have redirect, e.g.:
 		// ...&redirect=/patch-notes/...
 		// ...&redirect=/updates/...
-		ObfusString sub2("&redirect=");
-		if (const auto redirect = strstr(L->intop[0].getString(), sub2.c_str()))
+		if (const auto redirect = strstr(L->intop[0].getString(), "&redirect="))
 		{
-			const auto path = redirect + sub2.size();
+			const auto path = redirect + strlen("&redirect=");
 			if (luau_pushstring)
 			{
-				std::string new_url = ObfusString("https://www.warframe.com").str() + path;
-				string::replaceAll(new_url, ObfusString("/updates/").str(), ObfusString("/patch-notes/").str()); // The old /updates/ links now 404 instead of just redirecting...
+				std::string new_url = std::string("https://www.warframe.com") + path;
+				string::replaceAll(new_url, "/updates/", "/patch-notes/"); // The old /updates/ links now 404 instead of just redirecting...
 				L->outtop = &L->intop[0];
 				luau_pushstring(L, new_url.c_str());
 				return lua_OpenWebBrowser_og(L);
@@ -1895,8 +1882,7 @@ static int lua_FlashInstance_GetStringVariable_detour(luau_State* L)
 			{
 				if (L->outtop[i].isType(LUAU_TABLE))
 				{
-					ObfusString name("mPanelList");
-					luau_pushstring(L, name.c_str());
+					luau_pushstring(L, "mPanelList");
 					if (luau_gettable(L, i - 1) > 0)
 					{
 						ChatRedux_table = L->outtop[i - 1].value.as_uintptr;
@@ -1975,7 +1961,7 @@ static void load_metadata_patches()
 		metadata_patches_in_use = true;
 		return 0;
 	});
-	{ ObfusString name("new_patch"); lua_setglobal(L, name.c_str()); }
+	lua_setglobal(L, "new_patch");
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
@@ -1985,7 +1971,7 @@ static void load_metadata_patches()
 		}
 		return 0;
 	});
-	{ ObfusString name("add_replacement"); lua_setglobal(L, name.c_str()); }
+	lua_setglobal(L, "add_replacement");
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
@@ -2003,7 +1989,7 @@ static void load_metadata_patches()
 		}
 		return pushed;
 	});
-	{ ObfusString name("add_substitution"); lua_setglobal(L, name.c_str()); }
+	lua_setglobal(L, "add_substitution");
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
@@ -2013,7 +1999,7 @@ static void load_metadata_patches()
 		}
 		return 0;
 	});
-	{ ObfusString name("add_query_assignment"); lua_setglobal(L, name.c_str()); }
+	lua_setglobal(L, "add_query_assignment");
 
 	size_t size;
 	auto data = g_repo.find(soup::joaat::compileTimeHash("OpenWF/helpers/load_metadata_patches.pluto"), size);
@@ -2021,7 +2007,7 @@ static void load_metadata_patches()
 		|| lua_pcall(L, 0, 0, 0) != LUA_OK
 		)
 	{
-		owfScript::logNl(lua_type(L, -1) == LUA_TSTRING ? pluto_checkstring(L, -1) : ObfusString("Non-string script error").str());
+		owfScript::logNl(lua_type(L, -1) == LUA_TSTRING ? pluto_checkstring(L, -1) : "Non-string script error");
 	}
 
 	lua_close(L);
@@ -2117,8 +2103,8 @@ static void handle_metadata_read(ObjectType* objectType, Str* str)
 								{
 									if (!soup::string::toIntOpt<int64_t>(qa.second).consume(n->reinterpretAsInt().value))
 									{
-										conout << ObfusString("[Metadata Patches] Invalid integer value: ").str() << qa.second << std::endl;
-										conout << ObfusString("[Metadata Patches] - Object Type: ").str() << path << name << std::endl;
+										conout << "[Metadata Patches] Invalid integer value: " << qa.second << std::endl;
+										conout << "[Metadata Patches] - Object Type: " << path << name << std::endl;
 									}
 									else
 									{
@@ -2133,16 +2119,16 @@ static void handle_metadata_read(ObjectType* objectType, Str* str)
 						}
 						else if (patch.debug)
 						{
-							conout << ObfusString("[Metadata Patches] ").str() << qa.first << ObfusString(" did not resolve in ").str() << path << name << std::endl;
-							conout << ObfusString("[Metadata Patches] - Object Type: ").str() << path << name << std::endl;
+							conout << "[Metadata Patches] " << qa.first << " did not resolve in " << path << name << std::endl;
+							conout << "[Metadata Patches] - Object Type: " << path << name << std::endl;
 						}
 					}
 					text = EeNotationParser::unparse(*jr);
 				}
 				catch (const std::exception& e)
 				{
-					conout << ObfusString("[Metadata Patches] Error applying query assignment: ").str() << e.what() << std::endl;
-					conout << ObfusString("[Metadata Patches] - Object Type: ").str() << path << name << std::endl;
+					conout << "[Metadata Patches] Error applying query assignment: " << e.what() << std::endl;
+					conout << "[Metadata Patches] - Object Type: " << path << name << std::endl;
 				}
 			}
 			buf.append(text);
@@ -2167,14 +2153,11 @@ static void handle_metadata_read(ObjectType* objectType, Str* str)
 
 	if (should_write_to_console)
 	{
-		ObfusString prefix("Reading metadata for ");
-		conout.write(prefix.data(), prefix.size());
-		conout << path << name << "\n";
+		conout << "Reading metadata for " << path << name << "\n";
 	}
 	if (should_write_to_ee_log)
 	{
-		ObfusString prefix("[OpenWF] Reading metadata for ");
-		write_to_ee_log(prefix.data(), prefix.size());
+		write_to_ee_log("[OpenWF] Reading metadata for ");
 		write_to_ee_log(path);
 		write_to_ee_log(name);
 		write_to_ee_log("\n", 1);
@@ -2281,14 +2264,14 @@ static std::string process_irc_send(const char* data, size_t size)
 			const std::string nonce = arr[1].substr(6);
 			const size_t realname_length = (game_version >= GV(9, 0, 0)) ? 40 : nonce.size();
 			std::string replacement(data, size - realname_length);
-			replacement.append(ObfusString("token=").str() + create_token(accountId, nonce));
+			replacement.append("token=" + create_token(accountId, nonce));
 			return replacement;
 		}
 	}
 	if (size > 10 && soup::joaat::hashRange(data, 8) == soup::joaat::compileTimeHash("PRIVMSG "))
 	{
 		std::string_view sv(data, size);
-		const auto sep = sv.find(ObfusString(" :").str());
+		const auto sep = sv.find(" :");
 		if (sep != std::string::npos)
 		{
 			std::string_view message(data + sep + 2, size - (sep + 2));
@@ -2556,9 +2539,8 @@ static bool check_ec(const std::error_code& ec)
 {
 	if (ec)
 	{
-		ObfusString msg("Filesystem error. It's likely your anti-virus is interfering; please ensure the game folder is excluded from it.");
 		auto title = get_bootstrapper_title();
-		MessageBoxA(0, msg.c_str(), title.c_str(), MB_OK | MB_ICONERROR);
+		MessageBoxA(0, "Filesystem error. It's likely your anti-virus is interfering; please ensure the game folder is excluded from it.", title.c_str(), MB_OK | MB_ICONERROR);
 		return false;
 	}
 	return true;
@@ -2568,24 +2550,24 @@ static void log_optional_scan_failure(bool important)
 {
 	if (important)
 	{
-		conout << get_core_string(ObfusString("sigfailimp").str()) << std::endl;
+		conout << get_core_string("sigfailimp") << std::endl;
 	}
 	else
 	{
-		conout << get_core_string(ObfusString("sigfailopt").str()) << std::endl;
+		conout << get_core_string("sigfailopt") << std::endl;
 	}
 }
 
 static void report_critical_failure(std::string msg)
 {
 	int ndlls = 0;
-	if (std::filesystem::is_regular_file(ObfusString("wtsapi32.dll").str())) ++ndlls;
-	if (std::filesystem::is_regular_file(ObfusString("dwmapi.dll").str())) ++ndlls;
-	if (std::filesystem::is_regular_file(ObfusString("version.dll").str())) ++ndlls;
+	if (std::filesystem::is_regular_file("wtsapi32.dll")) ++ndlls;
+	if (std::filesystem::is_regular_file("dwmapi.dll")) ++ndlls;
+	if (std::filesystem::is_regular_file("version.dll")) ++ndlls;
 	if (ndlls > 1)
 	{
 		msg.push_back(' ');
-		msg.append(get_core_string(ObfusString("appmdll").str()));
+		msg.append(get_core_string("appmdll"));
 	}
 
 	const auto msg_utf16 = soup::unicode::utf8_to_utf16(msg);
@@ -2601,7 +2583,7 @@ static bool should_setup_optional_conditional_feature(void* ptr)
 		conout << "A conditional pattern scan has failed. This would be fatal in a public build." << std::endl;
 		return false;
 #else
-		report_critical_failure(get_core_string(ObfusString("sigfailbad").str()));
+		report_critical_failure(get_core_string("sigfailbad"));
 #endif
 	}
 	return true;
@@ -2623,7 +2605,7 @@ void start_bgscript()
 	std::lock_guard lock(running_scripts_mtx);
 	bgscript = new owfScript();
 	bgscript->openBgscriptLibs();
-	bgscript->loadString(ObfusString("Background Script"), std::move(code));
+	bgscript->loadString("Background Script", std::move(code));
 	bgscript->tick();
 }
 
@@ -2644,28 +2626,28 @@ void restart_bgscript()
 static void populate_full_script_log(JsonObject& obj)
 {
 	std::lock_guard lock(script_log_mtx);
-	obj.add(ObfusString("script_log"), script_log);
-	obj.add(ObfusString("script_log_len"), static_cast<int64_t>(script_log.size()));
+	obj.add("script_log", script_log);
+	obj.add("script_log_len", static_cast<int64_t>(script_log.size()));
 }
 
 void populate_full_status(JsonObject& obj)
 {
-	obj.add(ObfusString("server_host"), server_host);
+	obj.add("server_host", server_host);
 
-	obj.add(ObfusString("high_damage_numbers_patch"), high_damage_numbers_patch);
-	obj.add(ObfusString("skip_mission_start_timer"), skip_mission_start_timer);
-	obj.add(ObfusString("disable_profanity_filter"), disable_profanity_filter);
-	obj.add(ObfusString("simulacrum_blacklisted"), simulacrum_blacklisted);
-	obj.add(ObfusString("simulacrum_whitelisted"), simulacrum_whitelisted);
-	obj.add(ObfusString("pause_always_stops_time"), pause_always_stops_time);
-	obj.add(ObfusString("alternative_loading"), alternative_loading);
-	obj.add(ObfusString("ee_log_in_console"), ee_log_in_console);
+	obj.add("high_damage_numbers_patch", high_damage_numbers_patch);
+	obj.add("skip_mission_start_timer", skip_mission_start_timer);
+	obj.add("disable_profanity_filter", disable_profanity_filter);
+	obj.add("simulacrum_blacklisted", simulacrum_blacklisted);
+	obj.add("simulacrum_whitelisted", simulacrum_whitelisted);
+	obj.add("pause_always_stops_time", pause_always_stops_time);
+	obj.add("alternative_loading", alternative_loading);
+	obj.add("ee_log_in_console", ee_log_in_console);
 
-	obj.add(ObfusString("fov_override"), fov_override);
+	obj.add("fov_override", fov_override);
 
-	obj.add(ObfusString("console"), owfConsole::active);
+	obj.add("console", owfConsole::active);
 
-	obj.add(ObfusString("available_scripts"), soup::make_unique<JsonArray>(get_available_scripts()));
+	obj.add("available_scripts", soup::make_unique<JsonArray>(get_available_scripts()));
 	populate_running_scripts(obj);
 	populate_autostart_scripts(obj);
 	populate_full_script_log(obj);
@@ -2724,7 +2706,7 @@ bool owf_command(const std::string& in, JsonObject& out)
 #endif
 
 	case joaat::compileTimeHash("available_scripts"):
-		out.add(ObfusString("available_scripts"), soup::make_unique<JsonArray>(get_available_scripts()));
+		out.add("available_scripts", soup::make_unique<JsonArray>(get_available_scripts()));
 		return true;
 
 	case joaat::compileTimeHash("running_scripts"):
@@ -2765,11 +2747,11 @@ bool owf_command(const std::string& in, JsonObject& out)
 		if (args.size() > 1)
 		{
 			high_damage_numbers_patch = (args[1].size() == 4);
-			owf_broadcast_value(ObfusString("high_damage_numbers_patch"), high_damage_numbers_patch);
+			owf_broadcast_value("high_damage_numbers_patch", high_damage_numbers_patch);
 		}
 		else
 		{
-			out.add(ObfusString("high_damage_numbers_patch"), high_damage_numbers_patch);
+			out.add("high_damage_numbers_patch", high_damage_numbers_patch);
 		}
 		return true;
 
@@ -2777,11 +2759,11 @@ bool owf_command(const std::string& in, JsonObject& out)
 		if (args.size() > 1)
 		{
 			skip_mission_start_timer = (args[1].size() == 4);
-			owf_broadcast_value(ObfusString("skip_mission_start_timer"), skip_mission_start_timer);
+			owf_broadcast_value("skip_mission_start_timer", skip_mission_start_timer);
 		}
 		else
 		{
-			out.add(ObfusString("skip_mission_start_timer"), skip_mission_start_timer);
+			out.add("skip_mission_start_timer", skip_mission_start_timer);
 		}
 		return true;
 
@@ -2789,11 +2771,11 @@ bool owf_command(const std::string& in, JsonObject& out)
 		if (args.size() > 1)
 		{
 			disable_profanity_filter = (args[1].size() == 4);
-			owf_broadcast_value(ObfusString("disable_profanity_filter"), disable_profanity_filter);
+			owf_broadcast_value("disable_profanity_filter", disable_profanity_filter);
 		}
 		else
 		{
-			out.add(ObfusString("disable_profanity_filter"), disable_profanity_filter);
+			out.add("disable_profanity_filter", disable_profanity_filter);
 		}
 		return true;
 
@@ -2801,11 +2783,11 @@ bool owf_command(const std::string& in, JsonObject& out)
 		if (args.size() > 1)
 		{
 			simulacrum_blacklisted = (args[1].size() == 4);
-			owf_broadcast_value(ObfusString("simulacrum_blacklisted"), simulacrum_blacklisted);
+			owf_broadcast_value("simulacrum_blacklisted", simulacrum_blacklisted);
 		}
 		else
 		{
-			out.add(ObfusString("simulacrum_blacklisted"), simulacrum_blacklisted);
+			out.add("simulacrum_blacklisted", simulacrum_blacklisted);
 		}
 		return true;
 
@@ -2813,11 +2795,11 @@ bool owf_command(const std::string& in, JsonObject& out)
 		if (args.size() > 1)
 		{
 			simulacrum_whitelisted = (args[1].size() == 4);
-			owf_broadcast_value(ObfusString("simulacrum_whitelisted"), simulacrum_whitelisted);
+			owf_broadcast_value("simulacrum_whitelisted", simulacrum_whitelisted);
 		}
 		else
 		{
-			out.add(ObfusString("simulacrum_whitelisted"), simulacrum_whitelisted);
+			out.add("simulacrum_whitelisted", simulacrum_whitelisted);
 		}
 		return true;
 
@@ -2825,11 +2807,11 @@ bool owf_command(const std::string& in, JsonObject& out)
 		if (args.size() > 1)
 		{
 			alternative_loading = (args[1].size() == 4);
-			owf_broadcast_value(ObfusString("alternative_loading"), alternative_loading);
+			owf_broadcast_value("alternative_loading", alternative_loading);
 		}
 		else
 		{
-			out.add(ObfusString("alternative_loading"), alternative_loading);
+			out.add("alternative_loading", alternative_loading);
 		}
 		return true;
 
@@ -2837,11 +2819,11 @@ bool owf_command(const std::string& in, JsonObject& out)
 		if (args.size() > 1)
 		{
 			ee_log_in_console = (args[1].size() == 4); // Will not take effect in versions where this is not driven by the write_to_log_file hook.
-			owf_broadcast_value(ObfusString("ee_log_in_console"), ee_log_in_console);
+			owf_broadcast_value("ee_log_in_console", ee_log_in_console);
 		}
 		else
 		{
-			out.add(ObfusString("ee_log_in_console"), ee_log_in_console);
+			out.add("ee_log_in_console", ee_log_in_console);
 		}
 		return true;
 
@@ -2849,11 +2831,11 @@ bool owf_command(const std::string& in, JsonObject& out)
 		if (args.size() > 1)
 		{
 			fov_override = static_cast<float>(string::toIntOpt<int64_t>(args[1]).value()) / 10000.0f;
-			owf_broadcast_value(ObfusString("fov_override"), fov_override);
+			owf_broadcast_value("fov_override", fov_override);
 		}
 		else
 		{
-			out.add(ObfusString("fov_override"), fov_override);
+			out.add("fov_override", fov_override);
 		}
 		break;
 	}
@@ -3107,7 +3089,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #endif
 		SOUP_IF_UNLIKELY (!game_http_request_caller)
 		{
-			report_critical_failure(get_core_string(ObfusString("sigfailbad").str()));
+			report_critical_failure(get_core_string("sigfailbad"));
 		}
 		auto game_http_request = game_http_request_caller.add(offset).rip().as<void*>();
 		GameHttpRequest_body_offset = g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/GameHttpRequest_body.json"), game_version);
@@ -3203,7 +3185,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 
 		SOUP_IF_UNLIKELY (!encstr_append_hook.target || !encstr_discharge_hook.target)
 		{
-			report_critical_failure(get_core_string(ObfusString("sigfailenc").str()));
+			report_critical_failure(get_core_string("sigfailenc"));
 		}
 	}
 #endif
@@ -3272,7 +3254,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #endif
 		SOUP_IF_UNLIKELY (!ssl_verify_internal_caller)
 		{
-			report_critical_failure(get_core_string(ObfusString("sigfailbad").str()));
+			report_critical_failure(get_core_string("sigfailbad"));
 		}
 		auto ssl_verify_internal = ssl_verify_internal_caller.add(7).rip().as<void*>();
 		ssl_verify_internal_hook.detour = reinterpret_cast<void*>(&ssl_verify_internal_detour);
@@ -3291,7 +3273,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	#endif
 			SOUP_IF_UNLIKELY (!Curl_ossl_verifyhost)
 			{
-				report_critical_failure(get_core_string(ObfusString("sigfailbad").str()));
+				report_critical_failure(get_core_string("sigfailbad"));
 			}
 			Curl_ossl_verifyhost_hook.detour = reinterpret_cast<void*>(&Curl_ossl_verifyhost_detour);
 			Curl_ossl_verifyhost_hook.target = Curl_ossl_verifyhost;
@@ -3310,7 +3292,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #endif
 		SOUP_IF_UNLIKELY (!verify_worldstate_integrity)
 		{
-			report_critical_failure(get_core_string(ObfusString("sigfailbad").str()));
+			report_critical_failure(get_core_string("sigfailbad"));
 		}
 		verify_worldstate_integrity_hook.detour = reinterpret_cast<void*>(&verify_worldstate_integrity_detour);
 		verify_worldstate_integrity_hook.target = verify_worldstate_integrity;
@@ -3482,7 +3464,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 		}
 		else
 		{
-			conout << get_core_string(ObfusString("sigfaillegacy").str()) << std::endl;
+			conout << get_core_string("sigfaillegacy") << std::endl;
 		}
 	}
 
@@ -3539,8 +3521,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 
 #if !MINIMAL_HOOKS
 	{
-		ObfusString str("SquadSetCountdownTimer");
-		auto lua_SquadSetCountdownTimer_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_SquadSetCountdownTimer_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("SquadSetCountdownTimer")));
 #if LOGGING
 		conout << "lua_SquadSetCountdownTimer_hash = " << lua_SquadSetCountdownTimer_hash.as<void*>() << std::endl;
 #endif
@@ -3553,15 +3534,14 @@ static SOUP_FORCEINLINE void create_all_hooks()
 		}
 		else
 		{
-			conout << get_core_string(ObfusString("sigfailsmst").str()) << std::endl;
+			conout << get_core_string("sigfailsmst") << std::endl;
 		}
 	}
 #endif
 
 #if !MINIMAL_HOOKS
 	{
-		ObfusString str("SanitizeText");
-		auto lua_SanitizeText_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_SanitizeText_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("SanitizeText")));
 #if LOGGING
 		conout << "lua_SanitizeText_hash = " << lua_SanitizeText_hash.as<void*>() << std::endl;
 #endif
@@ -3574,7 +3554,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 		}
 		else
 		{
-			conout << get_core_string(ObfusString("sigfaildpf").str()) << std::endl;
+			conout << get_core_string("sigfaildpf") << std::endl;
 		}
 	}
 #endif
@@ -3704,8 +3684,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 		SOUP_IF_LIKELY (pStrFirewall)
 		{
 			memGuard::setAllowedAccess(pStrFirewall.as<void*>(), 8, memGuard::ACC_RWX);
-			ObfusString str("nominal");
-			strcpy(pStrFirewall.as<char*>(), str.c_str());
+			strcpy(pStrFirewall.as<char*>(), "nominal");
 		}
 		else
 		{
@@ -3740,9 +3719,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #if !MINIMAL_HOOKS
 	if (game_version >= GV(33, 0, 0))
 	{
-		ObfusString str_GetConfigBool("GetConfigBool");
-		ObfusString str_SetConfigBool("SetConfigBool");
-		auto lua_FlashMgr_GetConfigBool_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str_GetConfigBool.c_str()), wf_hash(str_SetConfigBool.c_str())));
+		auto lua_FlashMgr_GetConfigBool_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("GetConfigBool"), wf_hash("SetConfigBool")));
 #if LOGGING
 		conout << "lua_FlashMgr_GetConfigBool_hash = " << lua_FlashMgr_GetConfigBool_hash.as<void*>() << std::endl;
 #endif
@@ -3816,8 +3793,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #if !MINIMAL_HOOKS
 	if (have_scripting)
 	{
-		ObfusString str("UpdateFlashMarkers");
-		auto lua_LotusHudStatus_UpdateFlashMarkers_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_LotusHudStatus_UpdateFlashMarkers_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("UpdateFlashMarkers")));
 #if LOGGING
 		conout << "lua_LotusHudStatus_UpdateFlashMarkers_hash = " << lua_LotusHudStatus_UpdateFlashMarkers_hash.as<void*>() << std::endl;
 #endif
@@ -3890,15 +3866,14 @@ static SOUP_FORCEINLINE void create_all_hooks()
 		}
 		else
 		{
-			conout << get_core_string(ObfusString("sigfailfpd").str()) << std::endl;
+			conout << get_core_string("sigfailfpd") << std::endl;
 		}
 	}
 #endif
 
 #if !MINIMAL_HOOKS
 	{
-		ObfusString str("excludedFromSimulacrum");
-		auto excludedFromSimulacrum_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto excludedFromSimulacrum_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("excludedFromSimulacrum")));
 #if LOGGING
 		conout << "excludedFromSimulacrum_hash = " << excludedFromSimulacrum_hash.as<void*>() << std::endl;
 #endif
@@ -3919,7 +3894,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 		}
 		else
 		{
-			conout << get_core_string(ObfusString("sigfailswb").str()) << std::endl;
+			conout << get_core_string("sigfailswb") << std::endl;
 		}
 	}
 #endif
@@ -3945,8 +3920,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #if !MINIMAL_HOOKS
 	if (game_version >= GV(33, 0, 0)) // U32 Veilbreaker (2022.09.06.19.24) seems to crash in this detour
 	{
-		ObfusString str("GetStringVariable");
-		auto lua_FlashInstance_GetStringVariable_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_FlashInstance_GetStringVariable_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("GetStringVariable")));
 #if LOGGING
 		conout << "lua_FlashInstance_GetStringVariable_hash = " << lua_FlashInstance_GetStringVariable_hash.as<void*>() << std::endl;
 #endif
@@ -3962,8 +3936,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 
 #if !MINIMAL_HOOKS
 	{
-		ObfusString str("OpenWebBrowser");
-		auto lua_OpenWebBrowser_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_OpenWebBrowser_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("OpenWebBrowser")));
 #if LOGGING
 		conout << "lua_OpenWebBrowser_hash = " << lua_OpenWebBrowser_hash.as<void*>() << std::endl;
 #endif
@@ -3999,8 +3972,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 	{
-		ObfusString str("SetSeed");
-		auto lua_SetSeed_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_SetSeed_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("SetSeed")));
 #if LOGGING
 		conout << "lua_SetSeed_hash = " << lua_SetSeed_hash.as<void*>() << std::endl;
 #endif
@@ -4018,8 +3990,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 	{
-		ObfusString str("ChurnSeed");
-		auto lua_ChurnSeed_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_ChurnSeed_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("ChurnSeed")));
 #if LOGGING
 		conout << "lua_ChurnSeed_hash = " << lua_ChurnSeed_hash.as<void*>() << std::endl;
 #endif
@@ -4037,8 +4008,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 	{
-		ObfusString str("SRandom");
-		auto lua_SRandom_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_SRandom_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("SRandom")));
 #if LOGGING
 		conout << "lua_SRandom_hash = " << lua_SRandom_hash.as<void*>() << std::endl;
 #endif
@@ -4056,8 +4026,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 	{
-		ObfusString str("SRandomInt");
-		auto lua_SRandomInt_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_SRandomInt_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("SRandomInt")));
 #if LOGGING
 		conout << "lua_SRandomInt_hash = " << lua_SRandomInt_hash.as<void*>() << std::endl;
 #endif
@@ -4075,8 +4044,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 	{
-		ObfusString str("HashCrc32");
-		auto lua_HashCrc32_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_HashCrc32_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("HashCrc32")));
 #if LOGGING
 		conout << "lua_HashCrc32_hash = " << lua_HashCrc32_hash.as<void*>() << std::endl;
 #endif
@@ -4434,8 +4402,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #if !MINIMAL_HOOKS
 	if (!logout_on_request_failure || PRIVATE)
 	{
-		ObfusString str("WebSubscribeToFailure");
-		auto lua_WebSubscribeToFailure_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash(str.c_str())));
+		auto lua_WebSubscribeToFailure_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("WebSubscribeToFailure")));
 #if LOGGING
 		conout << "lua_WebSubscribeToFailure_hash = " << lua_WebSubscribeToFailure_hash.as<void*>() << std::endl;
 #endif
@@ -4452,7 +4419,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 		}
 		else
 		{
-			conout << get_core_string(ObfusString("sigfaillorf").str()) << std::endl;
+			conout << get_core_string("sigfaillorf") << std::endl;
 		}
 	}
 #endif
@@ -5161,21 +5128,21 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 #endif
 
 		std::error_code ec{};
-		std::filesystem::create_directory(ObfusString("OpenWF").str(), ec);
+		std::filesystem::create_directory("OpenWF", ec);
 		SOUP_RETHROW_FALSE(check_ec(ec));
 
 		g_repo.loadBuiltinArchive();
-		if (auto hotfix = string::fromFile(ObfusString("OpenWF/Hotfix.owf").str()); !hotfix.empty())
+		if (auto hotfix = string::fromFile("OpenWF/Hotfix.owf"); !hotfix.empty())
 		{
 			if (g_repo.loadHotfix(hotfix.data(), hotfix.size()))
 			{
 #if PRIVATE
-				conout << ObfusString("Hotfix applied").str() << std::endl;
+				conout << "Hotfix applied" << std::endl;
 #endif
 			}
 			else
 			{
-				conout << ObfusString("Ignoring hotfix because it was made for a different DLL version").str() << std::endl;
+				conout << "Ignoring hotfix because it was made for a different DLL version" << std::endl;
 			}
 		}
 
@@ -5214,16 +5181,16 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 		have_scripting = game_version >= g_client_tunables.getInt(joaat::compileTimeHash("min_gv_for_scripting"));
 
 		// Load config (depends on repo & version config)
-		if (!std::filesystem::exists(ObfusString("OpenWF/Client Config.json").str()))
+		if (!std::filesystem::exists("OpenWF/Client Config.json"))
 		{
-			if (std::filesystem::exists(ObfusString("OpenWF/client_config.json").str()))
+			if (std::filesystem::exists("OpenWF/client_config.json"))
 			{
-				std::filesystem::rename(ObfusString("OpenWF/client_config.json").str(), ObfusString("OpenWF/Client Config.json").str(), ec);
+				std::filesystem::rename("OpenWF/client_config.json", "OpenWF/Client Config.json", ec);
 				SOUP_RETHROW_FALSE(check_ec(ec));
 			}
-			else if (std::filesystem::exists(ObfusString("client_config.json").str()))
+			else if (std::filesystem::exists("client_config.json"))
 			{
-				std::filesystem::rename(ObfusString("client_config.json").str(), ObfusString("OpenWF/Client Config.json").str(), ec);
+				std::filesystem::rename("client_config.json", "OpenWF/Client Config.json", ec);
 				SOUP_RETHROW_FALSE(check_ec(ec));
 			}
 		}
@@ -5241,31 +5208,31 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 			}
 			for (const auto& arg : args)
 			{
-				if (arg.size() > 15 && arg.substr(0, 15) == ObfusString("-owfServerHost:").str())
+				if (arg.size() > 15 && arg.substr(0, 15) == "-owfServerHost:")
 				{
 					server_host = arg.substr(15);
 				}
-				else if (arg.size() > 13 && arg.substr(0, 13) == ObfusString("-owfHttpPort:").str())
+				else if (arg.size() > 13 && arg.substr(0, 13) == "-owfHttpPort:")
 				{
 					string::toIntOpt<uint16_t>(arg.substr(13)).consume(http_port);
 				}
-				else if (arg.size() > 14 && arg.substr(0, 14) == ObfusString("-owfHttpsPort:").str())
+				else if (arg.size() > 14 && arg.substr(0, 14) == "-owfHttpsPort:")
 				{
 					string::toIntOpt<uint16_t>(arg.substr(14)).consume(https_port);
 				}
-				else if (arg.size() > 19 && arg.substr(0, 19) == ObfusString("-owfClientHttpPort:").str())
+				else if (arg.size() > 19 && arg.substr(0, 19) == "-owfClientHttpPort:")
 				{
 					string::toIntOpt<uint16_t>(arg.substr(19)).consume(client_http_port);
 				}
-				else if (arg.size() > 14 && arg.substr(0, 14) == ObfusString("-owfAutologin:").str())
+				else if (arg.size() > 14 && arg.substr(0, 14) == "-owfAutologin:")
 				{
 					autologin = (arg.c_str()[15] == '1');
 				}
-				else if (arg.size() > 10 && arg.substr(0, 10) == ObfusString("-owfEmail:").str())
+				else if (arg.size() > 10 && arg.substr(0, 10) == "-owfEmail:")
 				{
 					autologin_email = arg.substr(10);
 				}
-				else if (arg.size() > 13 && arg.substr(0, 13) == ObfusString("-owfPassword:").str())
+				else if (arg.size() > 13 && arg.substr(0, 13) == "-owfPassword:")
 				{
 					owfConfig::setAutologinPassword(arg.substr(13));
 				}
@@ -5273,13 +5240,13 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 		}
 
 		// Initialise core dict (depends on repo + config)
-		g_core_dict = g_repo.getDict(ObfusString("core").str(), language);
-		g_overlay_dict = g_repo.getDict(ObfusString("overlay").str(), language);
+		g_core_dict = g_repo.getDict("core", language);
+		g_overlay_dict = g_repo.getDict("overlay", language);
 
 		// Reject too new versions (depends on core dict)
 		if (game_version >= g_client_tunables.getInt(joaat::compileTimeHash("toonew")))
 		{
-			auto msg = soup::unicode::utf8_to_utf16(get_core_string(ObfusString("toonew").str()));
+			auto msg = soup::unicode::utf8_to_utf16(get_core_string("toonew"));
 			auto title = soup::unicode::utf8_to_utf16(get_bootstrapper_title());
 			MessageBoxW(0, msg.c_str(), title.c_str(), MB_OK | MB_ICONERROR);
 			return exit(1), FALSE;
@@ -5290,7 +5257,7 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 			owfConsole::setExclusiveOutput();
 		}
 
-		conout << get_core_string(ObfusString("freenote").str()) << std::endl;
+		conout << get_core_string("freenote") << std::endl;
 
 		owfScript::init();
 
@@ -5410,10 +5377,9 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 
 		if (!auto_start_scripts.empty())
 		{
-			ObfusString base_path("OpenWF/Scripts/");
 			for (const auto& path : auto_start_scripts)
 			{
-				start_script_from_file(base_path.str() + path);
+				start_script_from_file("OpenWF/Scripts/" + path);
 			}
 		}
 	}

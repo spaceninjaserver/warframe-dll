@@ -21,11 +21,12 @@ inline bool active_input_filter_allows_hotkeys;
 using OodleLZ_Decompress_t = int(*)(const char* inputData, size_t inputLen, void* outputData, size_t outputLen, int a5, int a6, int a7, size_t a8, size_t a9, size_t a10, size_t a11, size_t a12, size_t a13, int a14);
 inline OodleLZ_Decompress_t OodleLZ_Decompress = nullptr;
 
-#define OWF_SET_GLOBAL(L, name) { ObfusString os(name); lua_setglobal(L, os.c_str()); }
+#define OWF_SET_GLOBAL(L, name) lua_setglobal(L, name);
 #define OWF_SET_GLOBAL_INT(L, name, value) lua_pushinteger(L, value); OWF_SET_GLOBAL(L, name);
 #define OWF_EXPOSE_INT_CONSTANT(L, e) OWF_SET_GLOBAL_INT(L, #e, e);
 
-#define OWF_PLUTO_NEWCLASSINST(L, T, ...) (T*)pluto_setupgcmt(L, new (lua_newuserdata(L, sizeof(T))) T(__VA_ARGS__), soup::ObfusString(#T).c_str(), [](lua_State *L2) { std::destroy_at<>((T*)luaL_checkudata(L2, 1, soup::ObfusString(#T).c_str())); return 0; })
+//#define OWF_PLUTO_NEWCLASSINST(L, T, ...) (T*)pluto_setupgcmt(L, new (lua_newuserdata(L, sizeof(T))) T(__VA_ARGS__), soup::ObfusString(#T).c_str(), [](lua_State *L2) { std::destroy_at<>((T*)luaL_checkudata(L2, 1, soup::ObfusString(#T).c_str())); return 0; })
+#define OWF_PLUTO_NEWCLASSINST(L, T, ...) pluto_newclassinst(L, T, __VA_ARGS__)
 
 enum owfScriptEventType : uint8_t
 {

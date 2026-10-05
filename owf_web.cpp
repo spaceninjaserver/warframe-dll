@@ -6,7 +6,6 @@
 #include <JsonArray.hpp>
 #include <JsonString.hpp>
 #include <JsonObject.hpp>
-#include <ObfusString.hpp>
 #include <ServerWebService.hpp>
 #include <Socket.hpp>
 #include <Thread.hpp>
@@ -79,16 +78,16 @@ struct owfContentTask : public Task
 			{
 				if (!owfOverlay::isInited())
 				{
-					if (hrt.hr.path.find(ObfusString("/0/B.Cache.Windows_").str()) != std::string::npos)
+					if (hrt.hr.path.find("/0/B.Cache.Windows_") != std::string::npos)
 					{
-						if (hrt.hr.path.substr(19, 2) == ObfusString("xx").str())
+						if (hrt.hr.path.substr(19, 2) == "xx")
 						{
-							auto msg = get_core_string(ObfusString("manfail"));
-							soup::string::replaceAll(msg, ObfusString("|NAME|").str(), hrt.hr.path.substr(11, 10));
+							auto msg = get_core_string("manfail");
+							soup::string::replaceAll(msg, "|NAME|", hrt.hr.path.substr(11, 10));
 							msg.append("\r\n");
-							msg.append("\r\n").append(get_core_string(ObfusString("blame")));
-							msg.append("\r\n").append(get_core_string(ObfusString("blamedl"))); // The game download did not finish as expected.
-							msg.append("\r\n").append(get_core_string(ObfusString("blameupd"))); // The game ran without a client patch and partially updated itself.
+							msg.append("\r\n").append(get_core_string("blame"));
+							msg.append("\r\n").append(get_core_string("blamedl")); // The game download did not finish as expected.
+							msg.append("\r\n").append(get_core_string("blameupd")); // The game ran without a client patch and partially updated itself.
 
 							const auto msg_utf16 = soup::unicode::utf8_to_utf16(msg);
 							const auto title_utf16 = soup::unicode::utf8_to_utf16(get_bootstrapper_title());
@@ -96,12 +95,12 @@ struct owfContentTask : public Task
 						}
 						else
 						{
-							auto msg = get_core_string(ObfusString("manfail"));
-							soup::string::replaceAll(msg, ObfusString("|NAME|").str(), hrt.hr.path.substr(11, 10));
+							auto msg = get_core_string("manfail");
+							soup::string::replaceAll(msg, "|NAME|", hrt.hr.path.substr(11, 10));
 							msg.append("\r\n");
-							msg.append("\r\n").append(get_core_string(ObfusString("blame")));
-							msg.append("\r\n").append(get_core_string(ObfusString("blamelcfg"))); // This installation simply does not have this content. (Try another language?)
-							msg.append("\r\n").append(get_core_string(ObfusString("blameupd"))); // The game ran without a client patch and partially updated itself.
+							msg.append("\r\n").append(get_core_string("blame"));
+							msg.append("\r\n").append(get_core_string("blamelcfg")); // This installation simply does not have this content. (Try another language?)
+							msg.append("\r\n").append(get_core_string("blameupd")); // The game ran without a client patch and partially updated itself.
 
 							const auto msg_utf16 = soup::unicode::utf8_to_utf16(msg);
 							const auto title_utf16 = soup::unicode::utf8_to_utf16(get_bootstrapper_title());
@@ -109,14 +108,14 @@ struct owfContentTask : public Task
 						}
 						exit(1);
 					}
-					if (hrt.hr.path.find(ObfusString("/0/B.Cache.Dx").str()) != std::string::npos)
+					if (hrt.hr.path.find("/0/B.Cache.Dx") != std::string::npos)
 					{
-						auto msg = get_core_string(ObfusString("manfail"));
-						soup::string::replaceAll(msg, ObfusString("|NAME|").str(), hrt.hr.path.substr(11, 4));
+						auto msg = get_core_string("manfail");
+						soup::string::replaceAll(msg, "|NAME|", hrt.hr.path.substr(11, 4));
 						msg.append("\r\n");
-						msg.append("\r\n").append(get_core_string(ObfusString("blame")));
-						msg.append("\r\n").append(get_core_string(ObfusString("blamegcfg"))); // This installation simply does not have this content. (Try another graphics driver?)
-						msg.append("\r\n").append(get_core_string(ObfusString("blameupd"))); // The game ran without a client patch and partially updated itself.
+						msg.append("\r\n").append(get_core_string("blame"));
+						msg.append("\r\n").append(get_core_string("blamegcfg")); // This installation simply does not have this content. (Try another graphics driver?)
+						msg.append("\r\n").append(get_core_string("blameupd")); // The game ran without a client patch and partially updated itself.
 
 						const auto msg_utf16 = soup::unicode::utf8_to_utf16(msg);
 						const auto title_utf16 = soup::unicode::utf8_to_utf16(get_bootstrapper_title());
@@ -157,7 +156,7 @@ struct owfHttpReverseProxyTask : public Task
 			}
 			else
 			{
-				ServerWebService::sendContent(*static_cast<Socket*>(s.get()), "500 Internal Server Error", ObfusString("HttpSendRequest failed\r\nStatus: ").str() + hrt.getStatus());
+				ServerWebService::sendContent(*static_cast<Socket*>(s.get()), "500 Internal Server Error", "HttpSendRequest failed\r\nStatus: " + hrt.getStatus());
 			}
 			setWorkDone();
 		}
@@ -172,7 +171,7 @@ void start_builtin_http_server()
 		{
 			if (client_http_logging)
 			{
-				conout << get_core_string(ObfusString("webonreq").str()) << ": " << req.path << std::endl;
+				conout << get_core_string("webonreq") << ": " << req.path << std::endl;
 			}
 			if (joaat::hash(req.path.substr(0, 8)) == joaat::compileTimeHash("/origin/"))
 			{
@@ -190,7 +189,7 @@ void start_builtin_http_server()
 			{
 				// Try to locate file locally
 				{
-					if (auto data = string::fromFile(ObfusString("OpenWF/content").str() + req.path); !data.empty())
+					if (auto data = string::fromFile("OpenWF/content" + req.path); !data.empty())
 					{
 						ServerWebService::sendText(s, std::move(data));
 						return;
@@ -217,7 +216,7 @@ void start_builtin_http_server()
 						host.push_back(':');
 						host.append(std::to_string(https_port));
 					}
-					req.setHeader(ObfusString("Host"), std::move(host));
+					req.setHeader("Host", std::move(host));
 				}
 				req.use_tls = true;
 				req.path.erase(0, 11);
@@ -250,17 +249,17 @@ void start_builtin_http_server()
 			case soup::joaat::compileTimeHash("/dict.js"):
 				{
 					JsonObject obj;
-					auto dict = g_repo.getDict(ObfusString("webui").str(), webui_lang_code);
+					auto dict = g_repo.getDict("webui", webui_lang_code);
 					for (const auto& e : dict)
 					{
 						obj.add(std::move(e.first), std::move(e.second));
 					}
-					ServerWebService::sendData(s, ObfusString("text/javascript;charset=utf-8"), ObfusString("dict=").str() + obj.encode());
+					ServerWebService::sendData(s, "text/javascript;charset=utf-8", "dict=" + obj.encode());
 				}
 				break;
 
 			case soup::joaat::compileTimeHash("/ping"):
-				ServerWebService::sendText(s, ObfusString("pong"));
+				ServerWebService::sendText(s, "pong");
 				break;
 
 			case soup::joaat::compileTimeHash("/save_all_metadata"):
@@ -461,17 +460,17 @@ void start_builtin_http_server()
 
 			case soup::joaat::compileTimeHash("/apply_hotfix"):
 				{
-					if (auto hotfix = string::fromFile(ObfusString("OpenWF/Hotfix.owf").str()); !hotfix.empty())
+					if (auto hotfix = string::fromFile("OpenWF/Hotfix.owf"); !hotfix.empty())
 					{
 						uint64_t timestamp;
 						if (!owfRepo::readHotfixHeader(hotfix.data(), hotfix.size(), timestamp))
 						{
-							ServerWebService::sendText(s, ObfusString("Failed to apply hotfix as it was made for a different DLL version").str());
+							ServerWebService::sendText(s, "Failed to apply hotfix as it was made for a different DLL version");
 							break;
 						}
 						if (timestamp == g_repo.timestamp)
 						{
-							ServerWebService::sendText(s, ObfusString("No changes").str());
+							ServerWebService::sendText(s, "No changes");
 							break;
 						}
 						{
@@ -482,7 +481,7 @@ void start_builtin_http_server()
 							}
 							g_repo.loadHotfix(hotfix.data(), hotfix.size());
 						}
-						ServerWebService::sendText(s, ObfusString("Hotfix applied").str());
+						ServerWebService::sendText(s, "Hotfix applied");
 					}
 					else
 					{
@@ -493,10 +492,10 @@ void start_builtin_http_server()
 						}
 						if (g_repo.timestamp == prev_timestamp)
 						{
-							ServerWebService::sendText(s, ObfusString("No changes").str());
+							ServerWebService::sendText(s, "No changes");
 							break;
 						}
-						ServerWebService::sendText(s, ObfusString("Reverting to pre-hotfix state").str());
+						ServerWebService::sendText(s, "Reverting to pre-hotfix state");
 					}
 
 					{
@@ -548,14 +547,14 @@ void start_builtin_http_server()
 #endif
 
 			case soup::joaat::compileTimeHash("/version"):
-				ServerWebService::sendText(s, ObfusString(BOOTSTRAPPER_TITLE).str());
+				ServerWebService::sendText(s, BOOTSTRAPPER_TITLE);
 				break;
 
 			case soup::joaat::compileTimeHash("/game_version"):
 				{
 					JsonObject obj;
-					obj.add(ObfusString("build_version"), std::string(build_version, 16));
-					obj.add(ObfusString("build_hash"), build_hash[0] ? std::string(build_hash, 22) : std::string());
+					obj.add("build_version", std::string(build_version, 16));
+					obj.add("build_hash", build_hash[0] ? std::string(build_hash, 22) : std::string());
 					ServerWebService::sendData(s, "application/json", obj.encodePretty());
 				}
 				break;
@@ -563,9 +562,9 @@ void start_builtin_http_server()
 			case soup::joaat::compileTimeHash("/memory"):
 				{
 					JsonObject obj;
-					//obj.add(ObfusString("leaked"), static_cast<int64_t>(leaked_memory.load()));
+					//obj.add("leaked", static_cast<int64_t>(leaked_memory.load()));
 //#if LABEL_REPLACEMENTS
-					obj.add(ObfusString("fossilised"), static_cast<int64_t>(fossilised_memory.load()));
+					obj.add("fossilised", static_cast<int64_t>(fossilised_memory.load()));
 //#endif
 					ServerWebService::sendData(s, "application/json", obj.encodePretty());
 				}
@@ -583,12 +582,12 @@ void start_builtin_http_server()
 						}
 						else
 						{
-							ServerWebService::sendText(s, ObfusString("patch not applied (yet)").str());
+							ServerWebService::sendText(s, "patch not applied (yet)");
 						}
 					}
 					else
 					{
-						ServerWebService::sendText(s, ObfusString("no such patch").str());
+						ServerWebService::sendText(s, "no such patch");
 					}
 				}
 				break;
@@ -606,12 +605,12 @@ void start_builtin_http_server()
 						}
 						else
 						{
-							ServerWebService::sendText(s, ObfusString("patch not applied (yet)").str());
+							ServerWebService::sendText(s, "patch not applied (yet)");
 						}
 					}
 					else
 					{
-						ServerWebService::sendText(s, ObfusString("no such patch").str());
+						ServerWebService::sendText(s, "no such patch");
 					}
 				}
 				break;
@@ -743,12 +742,12 @@ void start_builtin_http_server()
 
 		SOUP_IF_UNLIKELY (!g_serv.bindOptCrypto(client_http_port, &srv, std::move(certstore)))
 		{
-			conout << ObfusString("Failed to bind TCP/").str();
+			conout << "Failed to bind TCP/";
 			conout << client_http_port;
 			conout << '.';
 			if (game_version >= GV(33, 6, 0))
 			{
-				conout << ObfusString(" The game will fail to start.").str();
+				conout << " The game will fail to start.";
 			}
 			conout << std::endl;
 		}
@@ -824,7 +823,7 @@ void owfScriptRouteTask::onTick() /*final*/
 #if LOGGING
 		conout << "owfScriptRouteTask: script instance is gone" << std::endl;
 #endif
-		ServerWebService::sendContent(*static_cast<Socket*>(s.get()), "500 Internal Server Error", ObfusString("Sorry, this request was supposed to be handled by a script, but that script is no longer running now.").str());
+		ServerWebService::sendContent(*static_cast<Socket*>(s.get()), "500 Internal Server Error", "Sorry, this request was supposed to be handled by a script, but that script is no longer running now.");
 		return setWorkDone();
 	}
 }

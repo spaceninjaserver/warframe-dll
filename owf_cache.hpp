@@ -33,8 +33,8 @@ struct CachePair
 	size_t cache_size;
 
 	CachePair(const std::string& base)
-		: toc((TocFile*)soup::filesystem::createFileMapping(base + soup::ObfusString(".toc").str(), toc_size)),
-		  cache(soup::filesystem::createFileMapping(base + soup::ObfusString(".cache").str(), cache_size))
+		: toc((TocFile*)soup::filesystem::createFileMapping(base + ".toc", toc_size)),
+		  cache(soup::filesystem::createFileMapping(base + ".cache", cache_size))
 	{
 	}
 

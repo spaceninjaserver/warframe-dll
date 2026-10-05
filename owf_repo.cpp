@@ -5,7 +5,6 @@
 #include <deflate.hpp>
 #include <joaat.hpp>
 #include <MemoryRefReader.hpp>
-#include <ObfusString.hpp>
 #include <Pattern.hpp>
 #include <string.hpp>
 
@@ -143,17 +142,17 @@ Pattern owfRepo::getVersionedPattern(uint32_t path, uint64_t version) const
 
 std::unordered_map<std::string, std::string> owfRepo::getDict(const std::string& type, const std::string& lang) const
 {
-	std::string buf = string::fromFile(ObfusString("OpenWF/webui-").str() + type + ObfusString(".cat.txt").str());
+	std::string buf = string::fromFile("OpenWF/webui-" + type + ".cat.txt");
 	MemoryRefReader r(buf.data(), buf.size());
 	if (buf.empty())
 	{
 		r.data = (const uint8_t*)this->find(
-			soup::joaat::concat(soup::joaat::concat(soup::joaat::concat(soup::joaat::concat(soup::joaat::compileTimeHash("OpenWF/translations/"), type), "/"), lang), ObfusString(".cat.txt").str()),
+			soup::joaat::concat(soup::joaat::concat(soup::joaat::concat(soup::joaat::concat(soup::joaat::compileTimeHash("OpenWF/translations/"), type), "/"), lang), ".cat.txt"),
 			r.size
 		);
 		if (!r.data)
 		{
-			r.data = (const uint8_t*)this->find(soup::joaat::concat(soup::joaat::concat(soup::joaat::compileTimeHash("OpenWF/translations/"), type), ObfusString("/en.cat.txt").str()), r.size);
+			r.data = (const uint8_t*)this->find(soup::joaat::concat(soup::joaat::concat(soup::joaat::compileTimeHash("OpenWF/translations/"), type), "/en.cat.txt"), r.size);
 		}
 	}
 
