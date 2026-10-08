@@ -5465,8 +5465,7 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 		// Load version config (depends on tunables)
 		strip_tls = game_version < g_client_tunables.getInt(joaat::compileTimeHash("min_gv_for_tls"));
 		force_disable_overlay = game_version < g_client_tunables.getInt(joaat::compileTimeHash("min_gv_for_overlay"));
-		have_scripting = game_version >= g_client_tunables.getInt(joaat::compileTimeHash("min_gv_for_scripting"))
-			&& !(game_version >= GV(28, 0, 0) && game_version < GV(28, 3, 2));
+		have_scripting = game_version >= g_client_tunables.getInt(joaat::compileTimeHash("min_gv_for_scripting"));
 		lua51 = game_version < GV(32, 3, 0);
 		swig_names_are_strings = have_scripting && game_version < GV(22, 20, 2);
 
