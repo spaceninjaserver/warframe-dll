@@ -392,6 +392,8 @@ local wscoro = coroutine.create(function()
 	end
 end)
 
+local poll_input_filter <const> = owf_set_active_input_filter and compareversions(owf_get_build_version(), "2021.12.15.00.15") < 0 -- older builds don't log "InitMapping ... and filter"
+local last_input_filter
 while pcall(yield) do
 	if os.millis() - last_status_update >= 40 then
 		local status = {
@@ -442,6 +444,15 @@ while pcall(yield) do
 			script_log_len = script_log_nlen
 		end
 		last_status_update = os.millis()
+	end
+	if poll_input_filter then
+		local avatar = gRegion:GetLocalPlayerAvatar()
+		local filter = avatar and avatar:GetInputFilter()
+		local name = filter and filter:GetFullName() or ""
+		if name ~= last_input_filter then
+			last_input_filter = name
+			owf_set_active_input_filter(name)
+		end
 	end
 	if (fov_override := get_fov_override()) ~= 0 then
 		if ivkr_available and not owf_tunables_has("prohibit_fov_override") then

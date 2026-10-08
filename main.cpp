@@ -1144,9 +1144,9 @@ static luau_CFunction lua_SquadSetCountdownTimer_og;
 
 static int lua_SquadSetCountdownTimer_detour(luau_State* L)
 {
-	if (skip_mission_start_timer && !prohibit_skip_mission_start_timer && L->intop[1].isType(LUAU_NUMBER) && L->intop[1].value.as_float == 5.9f)
+	if (skip_mission_start_timer && !prohibit_skip_mission_start_timer && L->intop()[1].isType(LUAU_NUMBER) && L->intop()[1].value.as_float == 5.9f)
 	{
-		L->intop[1].value.as_float = 0.0f;
+		L->intop()[1].value.as_float = 0.0f;
 	}
 	return lua_SquadSetCountdownTimer_og(L);
 }
@@ -1156,12 +1156,12 @@ static luau_CFunction lua_SanitizeText_og;
 
 static int lua_SanitizeText_detour(luau_State* L)
 {
-	// L->intop[1] - string
-	// L->intop[2] - number (TextSanitizerCategory enum) - 0 (TSC_CHAT) or 1 (TSC_NAME)
+	// L->intop()[1] - string
+	// L->intop()[2] - number (TextSanitizerCategory enum) - 0 (TSC_CHAT) or 1 (TSC_NAME)
 
 	if (disable_profanity_filter && !prohibit_disable_profanity_filter)
 	{
-		L->outtop = &L->intop[1];
+		L->outtop() = &L->intop()[1];
 		return 1;
 	}
 	else
@@ -1318,6 +1318,15 @@ static bool name_lookup_detour(void* out, T* name, bool a3)
 	return reinterpret_cast<decltype(&name_lookup_detour<T>)>(name_lookup_hook.original)(out, name, a3);
 }
 
+void set_active_input_filter(std::string filter)
+{
+	active_input_filter = std::move(filter);
+	std::lock_guard lock(g_client_tunables_mtx);
+	active_input_filter_allows_hotkeys = !g_client_tunables.isStringInArray(joaat::compileTimeHash("nhkif"), joaat::hash(active_input_filter));
+#if LOGGING
+	conout << "active_input_filter = " << active_input_filter << (active_input_filter_allows_hotkeys ? " (hotkeys on)" : " (hotkeys off)") << std::endl;
+#endif
+}
 
 static DetourHook write_to_log_file_hook;
 static void* write_to_log_file_a1 = nullptr;
@@ -1369,9 +1378,7 @@ static void write_to_log_file_detour(void* const a1, char* const data, size_t _s
 							filter += 12;
 							size -= (filter - message);
 							size -= 1; // '\n'
-							active_input_filter = std::string(filter, size);
-							std::lock_guard lock(g_client_tunables_mtx);
-							active_input_filter_allows_hotkeys = !g_client_tunables.isStringInArray(joaat::compileTimeHash("nhkif"), joaat::hash(active_input_filter));
+							set_active_input_filter(std::string(filter, size));
 						}
 					}
 					break;
@@ -1455,30 +1462,30 @@ static luau_CFunction lua_FlashMgr_GetConfigBool_og;
 static int lua_FlashMgr_GetConfigBool_detour(luau_State* L)
 {
 	const int i = (game_version >= GV(43, 0, 0)) ? 0 : 1;
-	SOUP_IF_LIKELY (L->intop[i].isType(LUAU_STRING))
+	SOUP_IF_LIKELY (L->intop()[i].isType(LUAU_STRING))
 	{
 		if (autologin && !did_auto_login)
 		{
-			if (strcmp(L->intop[i].getString(), "Client.AutoLogin") == 0)
+			if (strcmp(L->intop()[i].getString(), "Client.AutoLogin") == 0)
 			{
 #if LOGGING
 				conout << "Reporting Client.AutoLogin as true" << std::endl;
 #endif
-				L->outtop[-1].value.as_bool = true;
-				L->outtop[-1].setType(LUAU_BOOL);
+				L->outtop()[-1].value.as_bool = true;
+				L->outtop()[-1].setType(LUAU_BOOL);
 				return 1;
 			}
 		}
 
 		if (alternative_loading)
 		{
-			if (strcmp(L->intop[i].getString(), "Server.FastLoad") == 0)
+			if (strcmp(L->intop()[i].getString(), "Server.FastLoad") == 0)
 			{
 #if LOGGING
 				conout << "Reporting Server.FastLoad as true" << std::endl;
 #endif
-				L->outtop[-1].value.as_bool = true;
-				L->outtop[-1].setType(LUAU_BOOL);
+				L->outtop()[-1].value.as_bool = true;
+				L->outtop()[-1].setType(LUAU_BOOL);
 				return 1;
 			}
 		}
@@ -1515,7 +1522,7 @@ static void handle_set_global(luau_State* L, uint32_t hash)
 {
 	if (hash == wf_hash("gRegion"))
 	{
-		regionmgr = L->outtop[-1].isType(LUAU_USERDATA) ? static_cast<RegionMgr*>(L->outtop[-1].getObject()) : nullptr;
+		regionmgr = L->outtop()[-1].isType(LUAU_USERDATA) ? static_cast<RegionMgr*>(L->outtop()[-1].getObject()) : nullptr;
 #if LOGGING
 		conout << " (gRegion) = " << regionmgr;
 		//conout << " " << resolve_string_handle(regionmgr->type->getPathHandle());
@@ -1525,35 +1532,35 @@ static void handle_set_global(luau_State* L, uint32_t hash)
 	}
 	else if (hash == wf_hash("gFlashMgr"))
 	{
-		flashmgr = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
+		flashmgr = L->outtop()[-1].isType(LUAU_USERDATA) ? L->outtop()[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gFlashMgr) = " << flashmgr;
 #endif
 	}
 	else if (hash == wf_hash("gGameData"))
 	{
-		gamedata = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
+		gamedata = L->outtop()[-1].isType(LUAU_USERDATA) ? L->outtop()[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gGameData) = " << gamedata;
 #endif
 	}
 	else if (hash == wf_hash("gPlayerProfileMgr"))
 	{
-		profilemgr = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
+		profilemgr = L->outtop()[-1].isType(LUAU_USERDATA) ? L->outtop()[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gPlayerProfileMgr) = " << profilemgr;
 #endif
 	}
 	else if (hash == wf_hash("gClient"))
 	{
-		gClient = L->outtop[-1].isType(LUAU_USERDATA) ? L->outtop[-1].getObject() : nullptr;
+		gClient = L->outtop()[-1].isType(LUAU_USERDATA) ? L->outtop()[-1].getObject() : nullptr;
 #if LOGGING
 		conout << " (gClient) = " << gClient;
 #endif
 	}
 	else if (hash == wf_hash("gMatchingService"))
 	{
-		matchingservice = L->outtop[-1].isType(LUAU_USERDATA) ? *(void**)(L->outtop[-1].value.as_uintptr + 0x18) : nullptr;
+		matchingservice = L->outtop()[-1].isType(LUAU_USERDATA) ? *(void**)(L->outtop()[-1].value.as_uintptr + 0x18) : nullptr;
 #if LOGGING
 		conout << " (gMatchingService) = " << matchingservice;
 #endif
@@ -1578,13 +1585,28 @@ static void lua_set_global_by_hash_detour(luau_State* L, uint32_t hash)
 
 static DetourHook lua_set_global_hook;
 
-static void lua_set_global_detour(luau_State* L, const char* name)
+static void on_set_global(luau_State* L, const char* name)
 {
 #if LOGGING
 	conout << "lua_set_global: " << name;
 #endif
 	handle_set_global(L, wf_hash(name));
+}
+
+static void lua_set_global_detour(luau_State* L, const char* name)
+{
+	on_set_global(L, name);
 	return reinterpret_cast<decltype(&lua_set_global_detour)>(lua_set_global_hook.original)(L, name);
+}
+
+// Before 28.3.0, globals are published with lua_setfield(L, LUA_GLOBALSINDEX, name).
+static void lua51_setfield_detour(luau_State* L, int idx, const char* k)
+{
+	if (idx == -10002)
+	{
+		on_set_global(L, k);
+	}
+	return reinterpret_cast<decltype(&lua51_setfield_detour)>(lua_set_global_hook.original)(L, idx, k);
 }
 
 
@@ -1628,6 +1650,29 @@ static raise_script_error_t* raise_script_error_fp = nullptr;
 
 #define PROFILE_SCRIPT_TICKING false
 
+static void owf_luau_panic(luau_State* L, int status)
+{
+#if LOGGING
+	conout << "LuaU is panicking" << std::endl;
+#endif
+	luau_error_msg = L->outtop()[-1].isType(LUAU_STRING) ? (--L->outtop())->getString() : "error " + std::to_string(status); // memory/C-stack errors push no message
+#if LOGGING
+	conout << luau_error_msg << std::endl;
+#endif
+	throw 0;
+}
+
+// 5.1 luaD_throw runs resetstack() before the panic function
+static DetourHook lua51_luaD_throw_hook;
+static void lua51_luaD_throw_detour(luau_State* L, int status)
+{
+	if (!L->error_longjump_data() && L->global_state()->panic_func() == &owf_luau_panic)
+	{
+		owf_luau_panic(L, status);
+	}
+	return reinterpret_cast<decltype(&lua51_luaD_throw_detour)>(lua51_luaD_throw_hook.original)(L, status);
+}
+
 static int lua_LotusHudStatus_UpdateFlashMarkers_detour(luau_State* L)
 {
 #if PROFILE_SCRIPT_TICKING
@@ -1635,28 +1680,18 @@ static int lua_LotusHudStatus_UpdateFlashMarkers_detour(luau_State* L)
 #endif
 
 #if true
-	const auto og_outtop = luau_savestack(L, L->outtop);
-	const auto og_intop = luau_savestack(L, L->intop);
-	const auto og_lngjmp = L->global_state->error_longjump_data();
-	const auto og_panic = L->global_state->panic_func();
+	const auto og_outtop = luau_savestack(L, L->outtop());
+	const auto og_intop = luau_savestack(L, L->intop());
+	const auto og_lngjmp = L->error_longjump_data();
+	const auto og_panic = L->global_state()->panic_func();
 	raise_script_error_t og_raise;
 
 	luau_L = L;
 	if (have_scripting)
 	{
 		// ivkr_call(ivkr_find_method("HumanPlayer", "IsFreeCameraActive"), 0)
-		L->global_state->error_longjump_data() = nullptr;
-		L->global_state->panic_func() = [](luau_State* L, int)
-		{
-#if LOGGING
-			conout << "LuaU is panicking" << std::endl;
-#endif
-			luau_error_msg = (--L->outtop)->getString();
-#if LOGGING
-			conout << luau_error_msg << std::endl;
-#endif
-			throw 0;
-		};
+		L->error_longjump_data() = nullptr;
+		L->global_state()->panic_func() = &owf_luau_panic;
 	}
 	if (raise_script_error_fp)
 	{
@@ -1724,17 +1759,17 @@ static int lua_LotusHudStatus_UpdateFlashMarkers_detour(luau_State* L)
 	}
 
 #if PRIVATE
-	if (luau_savestack(L, L->outtop) != og_outtop)
+	if (luau_savestack(L, L->outtop()) != og_outtop)
 	{
 		owfScript::logNl("Not all values were popped from LuaU stack");
 	}
 #endif
 	if (have_scripting)
 	{
-		L->outtop = luau_restorestack(L, og_outtop);
-		L->intop = luau_restorestack(L, og_intop);
-		L->global_state->error_longjump_data() = og_lngjmp;
-		L->global_state->panic_func() = og_panic;
+		L->outtop() = luau_restorestack(L, og_outtop);
+		L->intop() = luau_restorestack(L, og_intop);
+		L->error_longjump_data() = og_lngjmp;
+		L->global_state()->panic_func() = og_panic;
 	}
 	if (raise_script_error_fp)
 	{
@@ -1796,8 +1831,8 @@ static CompactDetourHook lua_AvatarEntry_excludedFromSimulacrum_get_hook;
 static int lua_AvatarEntry_excludedFromSimulacrum_get_detour(luau_State* L)
 {
 	reinterpret_cast<luau_CFunction>(lua_AvatarEntry_excludedFromSimulacrum_get_hook.original)(L);
-	//conout << "lua_AvatarEntry_excludedFromSimulacrum_get: " << L->outtop[-1].value.as_bool << std::endl;
-	L->outtop[-1].value.as_bool = L->outtop[-1].value.as_bool ? !simulacrum_blacklisted : !simulacrum_whitelisted;
+	//conout << "lua_AvatarEntry_excludedFromSimulacrum_get: " << L->outtop()[-1].value.as_bool << std::endl;
+	L->outtop()[-1].value.as_bool = L->outtop()[-1].value.as_bool ? !simulacrum_blacklisted : !simulacrum_whitelisted;
 	return 1;
 }
 
@@ -1817,21 +1852,21 @@ static luau_CFunction lua_OpenWebBrowser_og;
 static int lua_OpenWebBrowser_detour(luau_State* L)
 {
 #if LOGGING
-	conout << "lua_OpenWebBrowser: " << L->intop[0].getString() << std::endl;
+	conout << "lua_OpenWebBrowser: " << L->intop()[0].getString() << std::endl;
 #endif
-	if (strstr(L->intop[0].getString(), "warframe.com") != nullptr)
+	if (strstr(L->intop()[0].getString(), "warframe.com") != nullptr)
 	{
 		// Purchases have a sku; other usages instead have redirect, e.g.:
 		// ...&redirect=/patch-notes/...
 		// ...&redirect=/updates/...
-		if (const auto redirect = strstr(L->intop[0].getString(), "&redirect="))
+		if (const auto redirect = strstr(L->intop()[0].getString(), "&redirect="))
 		{
 			const auto path = redirect + strlen("&redirect=");
 			if (luau_pushstring)
 			{
 				std::string new_url = std::string("https://www.warframe.com") + path;
 				string::replaceAll(new_url, "/updates/", "/patch-notes/"); // The old /updates/ links now 404 instead of just redirecting...
-				L->outtop = &L->intop[0];
+				L->outtop() = &L->intop()[0];
 				luau_pushstring(L, new_url.c_str());
 				return lua_OpenWebBrowser_og(L);
 			}
@@ -1847,12 +1882,12 @@ static luau_CFunction lua_FlashInstance_GetStringVariable_og;
 static int lua_FlashInstance_GetStringVariable_detour(luau_State* L)
 {
 	auto ret = lua_FlashInstance_GetStringVariable_og(L);
-	//conout << "lua_FlashInstance_GetStringVariable: " << L->intop[1].getString() << " -> " << L->outtop[-1].getString() << std::endl;
-	if (soup::joaat::hash(L->intop[1].getString()) == soup::joaat::compileTimeHash("Window.SendMessageBar.MessageBox"))
+	//conout << "lua_FlashInstance_GetStringVariable: " << L->intop()[1].getString() << " -> " << L->outtop()[-1].getString() << std::endl;
+	if (soup::joaat::hash(L->intop()[1].getString()) == soup::joaat::compileTimeHash("Window.SendMessageBar.MessageBox"))
 	{
 		bool block = false;
 		{
-			const std::string current_draft = L->outtop[-1].getString();
+			const std::string current_draft = L->outtop()[-1].getString();
 
 			std::lock_guard lock(running_scripts_mtx);
 			for (auto& scr : running_scripts)
@@ -1860,7 +1895,7 @@ static int lua_FlashInstance_GetStringVariable_detour(luau_State* L)
 				if (auto pBlock = scr->findChatSendSubscription(current_draft))
 				{
 					block |= *pBlock;
-					if (L->intop[-3].isType(LUAU_NIL)) // Heuristic to determine if the message was just submitted
+					if (L->intop()[-3].isType(LUAU_NIL)) // Heuristic to determine if the message was just submitted
 					{
 						scr->events.emplace_back(OWF_EVT_SUBMIT_CHAT_MESSAGE, (uint32_t)*pBlock, current_draft);
 					}
@@ -1871,7 +1906,7 @@ static int lua_FlashInstance_GetStringVariable_detour(luau_State* L)
 		if (block && luau_pushstring)
 		{
 			// Stop the game from processing this
-			L->outtop--;
+			L->outtop()--;
 			luau_pushstring(L, " ");
 		}
 
@@ -1880,16 +1915,16 @@ static int lua_FlashInstance_GetStringVariable_detour(luau_State* L)
 			int i = 0;
 			while (--i > -20)
 			{
-				if (L->outtop[i].isType(LUAU_TABLE))
+				if (L->outtop()[i].isType(LUAU_TABLE))
 				{
 					luau_pushstring(L, "mPanelList");
 					if (luau_gettable(L, i - 1) > 0)
 					{
-						ChatRedux_table = L->outtop[i - 1].value.as_uintptr;
-						L->outtop--;
+						ChatRedux_table = L->outtop()[i - 1].value.as_uintptr;
+						L->outtop()--;
 						break;
 					}
-					L->outtop--;
+					L->outtop()--;
 				}
 			}
 		}
@@ -2326,28 +2361,28 @@ static int lua_SetSeed_detour(luau_State* L)
 static int lua_ChurnSeed_detour(luau_State* L)
 {
 	lua_ChurnSeed_og(L);
-	conout << "lua_ChurnSeed: " << L->intop[1].value.as_float << " iterations; lua_seed is now " << (lua_seed ? std::to_string(*lua_seed) : "[unknown]") << std::endl;
+	conout << "lua_ChurnSeed: " << L->intop()[1].value.as_float << " iterations; lua_seed is now " << (lua_seed ? std::to_string(*lua_seed) : "[unknown]") << std::endl;
 	return 0;
 }
 
 static int lua_SRandom_detour(luau_State* L)
 {
 	lua_SRandom_og(L);
-	conout << "lua_SRandom(" << L->intop[0].value.as_float << ", " << L->intop[1].value.as_float << "): generated " << L->outtop[-1].value.as_float << "; lua_seed is now " << (lua_seed ? std::to_string(*lua_seed) : "[unknown]") << std::endl;
+	conout << "lua_SRandom(" << L->intop()[0].value.as_float << ", " << L->intop()[1].value.as_float << "): generated " << L->outtop()[-1].value.as_float << "; lua_seed is now " << (lua_seed ? std::to_string(*lua_seed) : "[unknown]") << std::endl;
 	return 1;
 }
 
 static int lua_SRandomInt_detour(luau_State* L)
 {
 	lua_SRandomInt_og(L);
-	conout << "lua_SRandomInt(" << L->intop[0].value.as_float << ", " << L->intop[1].value.as_float << "): generated " << L->outtop[-1].value.as_float << "; lua_seed is now " << (lua_seed ? std::to_string(*lua_seed) : "[unknown]") << std::endl;
+	conout << "lua_SRandomInt(" << L->intop()[0].value.as_float << ", " << L->intop()[1].value.as_float << "): generated " << L->outtop()[-1].value.as_float << "; lua_seed is now " << (lua_seed ? std::to_string(*lua_seed) : "[unknown]") << std::endl;
 	return 1;
 }
 
 static int lua_HashCrc32_detour(luau_State* L)
 {
 	lua_HashCrc32_og(L);
-	conout << "lua_HashCrc32(" << L->intop[0].getString() << "): returned " << L->outtop[-1].value.as_float << std::endl;
+	conout << "lua_HashCrc32(" << L->intop()[0].getString() << "): returned " << L->outtop()[-1].value.as_float << std::endl;
 	return 1;
 }
 #endif
@@ -2940,6 +2975,40 @@ static soup::Pattern hash_to_pattern(uint32_t hash1, uint32_t hash2)
 	return Pattern(data, sizeof(data));
 }
 
+[[nodiscard]] static std::pair<uintptr_t, uintptr_t> module_bounds() noexcept
+{
+	const auto range = Module(nullptr).range;
+	return { range.base.as<uintptr_t>(), range.base.as<uintptr_t>() + range.size };
+}
+
+static Pointer find_method_entry(const char* name, const char* prev = nullptr)
+{
+	if (!swig_names_are_strings)
+	{
+		return Module(nullptr).range.scan(hash_to_pattern(wf_hash(name)));
+	}
+	const auto [lo, hi] = module_bounds();
+	const auto begin = reinterpret_cast<const char*>(lo);
+	const auto end = reinterpret_cast<const char*>(hi);
+	const auto in_module = [=](uintptr_t p) { return p >= lo && p < hi; };
+	const size_t len = strlen(name) + 1;
+	for (auto s = std::search(begin + 1, end, name, name + len); s != end; s = std::search(s + 1, end, name, name + len))
+	{
+		if (s[-1] != 0)
+		{
+			continue;
+		}
+		for (auto q = reinterpret_cast<const uintptr_t*>(begin) + 2; q + 1 < reinterpret_cast<const uintptr_t*>(end); ++q)
+		{
+			if (*q == reinterpret_cast<uintptr_t>(s) && in_module(q[1]) && (!prev || (in_module(q[-2]) && strcmp(reinterpret_cast<const char*>(q[-2]), prev) == 0)))
+			{
+				return Pointer(const_cast<uintptr_t*>(q));
+			}
+		}
+	}
+	return nullptr;
+}
+
 static SOUP_FORCEINLINE void create_all_hooks()
 {
 	// 2018.02.22.14.34 (M:8004325165498360760)
@@ -3521,7 +3590,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 
 #if !MINIMAL_HOOKS
 	{
-		auto lua_SquadSetCountdownTimer_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("SquadSetCountdownTimer")));
+		auto lua_SquadSetCountdownTimer_hash = find_method_entry("SquadSetCountdownTimer");
 #if LOGGING
 		conout << "lua_SquadSetCountdownTimer_hash = " << lua_SquadSetCountdownTimer_hash.as<void*>() << std::endl;
 #endif
@@ -3541,7 +3610,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 
 #if !MINIMAL_HOOKS
 	{
-		auto lua_SanitizeText_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("SanitizeText")));
+		auto lua_SanitizeText_hash = find_method_entry("SanitizeText");
 #if LOGGING
 		conout << "lua_SanitizeText_hash = " << lua_SanitizeText_hash.as<void*>() << std::endl;
 #endif
@@ -3699,13 +3768,19 @@ static SOUP_FORCEINLINE void create_all_hooks()
 		// "Sys [Error]: Could not write to "
 		SIG_INST("48 8B 0D ? ? ? ? 48 85 C9 74 14 41 B8 20 00 00 00 48 8D 15 ? ? ? ? E8");
 		auto write_to_log_file_callsite = Module(nullptr).range.scan(sig_inst);
+		void* write_to_log_file = write_to_log_file_callsite ? write_to_log_file_callsite.add(26).rip().as<void*>() : nullptr;
+		if (!write_to_log_file)
+		{
+			SIG_INST("40 56 57 41 54 41 55 48 83 EC 28 48 8B F1 4D 8B E8 48 83 C1 ? 4C 8B E2 E8"); // 2019.08 - 2021.12
+			write_to_log_file = Module(nullptr).range.scan(sig_inst).as<void*>();
+		}
 #if LOGGING
-		conout << "write_to_log_file_callsite = " << write_to_log_file_callsite.as<void*>() << std::endl;
+		conout << "write_to_log_file = " << write_to_log_file << std::endl;
 #endif
-		SOUP_IF_LIKELY (write_to_log_file_callsite)
+		SOUP_IF_LIKELY (write_to_log_file)
 		{
 			write_to_log_file_hook.detour = reinterpret_cast<void*>(&write_to_log_file_detour);
-			write_to_log_file_hook.target = write_to_log_file_callsite.add(26).rip().as<void*>();
+			write_to_log_file_hook.target = write_to_log_file;
 			write_to_log_file_hook.create();
 			write_to_log_file_hook.enable();
 		}
@@ -3767,7 +3842,22 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	if (have_scripting)
 	{
 		void* lua_set_global;
-		if (game_version >= GV(35, 5, 0))
+		if (lua51 && game_version < GV(28, 3, 2))
+		{
+			SIG_INST("48 89 5C 24 08 57 48 83 EC 30 4D 8B C8 48 8B F9 85 D2 7E 22 8D 42 FF 48 63 D0 48 8D 1D ? ? ? ? 48 C1 E2 04 48 03 51 18 48 3B 51 10 48 0F 42 DA E9 ? ? ? ? 81 FA F0 D8 FF FF 7E 10 48 63 DA 48 C1 E3 04 48 03 59 10 E9 ? ? ? ? 41 B8 EE D8 FF FF 41 3B D0 74 74 81 FA EF D8 FF FF 74 4A 81 FA F0 D8 FF FF 74 35 48 8B 41 28 44 2B C2 48 8B 48 08 4C 8B 11 41 0F B6 42 0B 44 3B C0 7F 14 41 8D 40 FF 48 63 C8 49 8D 5A 28 48 C1 E1 04 48 03 D9 EB 3C 48 8D 1D ? ? ? ? EB 33 48 8B 59 20 48 81 C3 A0 00 00 00 EB 26 48 8B 41 28 48 8D 99 88 00 00 00 48 8B 48 08 48 8B 01 48 8B 48 18 48 89 0B C7 43 08 05 00 00 00 EB 04 48 8D 59 78 49 C7 C0 FF FF FF FF 0F 1F 84 00 00 00 00 00 49 FF C0 43 80 3C 01 00 75 F6 49 8B D1 48 8B CF E8 ? ? ? ? 4C 8B 4F 10 4C 8D 44 24 20 49 83 E9 10 48 89 44 24 20 48 8B D3 C7 44 24 28 04 00 00 00 48 8B CF E8 ? ? ? ? 48 83 47 10 F0 48 8B 5C 24 40 48 83 C4 30 5F C3"); // lua_setfield
+			lua_set_global = Module(nullptr).range.scan(sig_inst).as<void*>();
+			if (!lua_set_global)
+			{
+				SIG_INST("48 89 5C 24 08 57 48 83 EC 30 4D 8B C8 48 8B F9 85 D2 7E 22 8D 42 FF 48 63 D0 48 8D 1D ? ? ? ? 48 C1 E2 04 48 03 51 18 48 3B 51 10 48 0F 42 DA E9 ? ? ? ? 81 FA F0 D8 FF FF 7E 10 48 63 DA 48 C1 E3 04 48 03 59 10 E9 ? ? ? ? 41 B8 EE D8 FF FF 41 3B D0 74 74 81 FA EF D8 FF FF 74 4A 81 FA F0 D8 FF FF 74 35 48 8B 41 28 44 2B C2 48 8B 48 08 4C 8B 11 41 0F B6 42 0B 44 3B C0 7F 14 41 8D 40 FF 48 63 C8 49 8D 5A 28 48 C1 E1 04 48 03 D9 EB 3C 48 8D 1D ? ? ? ? EB 33 48 8B 59 20 48 81 C3 A0 00 00 00 EB 26 48 8B 41 28 48 8D 99 88 00 00 00 48 8B 48 08 48 8B 01 48 8B 48 18 48 89 0B C7 43 08 05 00 00 00 EB 04 48 8D 59 78 49 83 C8 FF 49 FF C0 43 80 3C 01 00 75 F6 49 8B D1 48 8B CF E8 ? ? ? ? 4C 8B 4F 10 4C 8D 44 24 20 49 83 E9 10 48 89 44 24 20 48 8B D3 C7 44 24 28 04 00 00 00"); // 2017.12.08.15.29 - 2018.05.17.16.28
+				lua_set_global = Module(nullptr).range.scan(sig_inst).as<void*>();
+			}
+		}
+		else if (lua51)
+		{
+			SIG_INST("40 53 48 83 EC 20 4C 8B 41 10 48 8B D9 48 8B 41 78 49 89 00 8B 81 80 00 00 00 41 89 40 08 48 83 41 10 10");
+			lua_set_global = Module(nullptr).range.scan(sig_inst).as<void*>();
+		}
+		else if (game_version >= GV(35, 5, 0))
 		{
 			SIG_INST("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 F6 41 01 04 48 8B FA");
 			lua_set_global = Module(nullptr).range.scan(sig_inst).as<void*>();
@@ -3782,7 +3872,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #endif
 		SOUP_IF_LIKELY (should_setup_optional_conditional_feature(lua_set_global))
 		{
-			lua_set_global_hook.detour = reinterpret_cast<void*>(&lua_set_global_detour);
+			lua_set_global_hook.detour = (lua51 && game_version < GV(28, 3, 2)) ? reinterpret_cast<void*>(&lua51_setfield_detour) : reinterpret_cast<void*>(&lua_set_global_detour);
 			lua_set_global_hook.target = lua_set_global;
 			lua_set_global_hook.create();
 			lua_set_global_hook.enable();
@@ -3793,7 +3883,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #if !MINIMAL_HOOKS
 	if (have_scripting)
 	{
-		auto lua_LotusHudStatus_UpdateFlashMarkers_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("UpdateFlashMarkers")));
+		auto lua_LotusHudStatus_UpdateFlashMarkers_hash = find_method_entry("UpdateFlashMarkers");
 #if LOGGING
 		conout << "lua_LotusHudStatus_UpdateFlashMarkers_hash = " << lua_LotusHudStatus_UpdateFlashMarkers_hash.as<void*>() << std::endl;
 #endif
@@ -3873,7 +3963,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 
 #if !MINIMAL_HOOKS
 	{
-		auto excludedFromSimulacrum_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("excludedFromSimulacrum")));
+		auto excludedFromSimulacrum_hash = find_method_entry("excludedFromSimulacrum");
 #if LOGGING
 		conout << "excludedFromSimulacrum_hash = " << excludedFromSimulacrum_hash.as<void*>() << std::endl;
 #endif
@@ -3918,9 +4008,13 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #endif
 
 #if !MINIMAL_HOOKS
-	if (game_version >= GV(33, 0, 0)) // U32 Veilbreaker (2022.09.06.19.24) seems to crash in this detour
+	if (game_version >= GV(33, 0, 0) || have_scripting) // // U32 Veilbreaker (2022.09.06.19.24) seems to crash in this detour, might work now that it's version aware - untested
 	{
-		auto lua_FlashInstance_GetStringVariable_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("GetStringVariable")));
+		auto lua_FlashInstance_GetStringVariable_hash = swig_names_are_strings ? find_method_entry("GetVariable", "SetVariable") : Module(nullptr).range.scan(game_version >= GV(28, 3, 2) ? hash_to_pattern(wf_hash("GetStringVariable")) : hash_to_pattern(wf_hash("SetStringVariable"), wf_hash("SetVariable")));
+		if (lua_FlashInstance_GetStringVariable_hash && game_version < GV(28, 3, 2) && !swig_names_are_strings)
+		{
+			lua_FlashInstance_GetStringVariable_hash = lua_FlashInstance_GetStringVariable_hash.add(0x20);
+		}
 #if LOGGING
 		conout << "lua_FlashInstance_GetStringVariable_hash = " << lua_FlashInstance_GetStringVariable_hash.as<void*>() << std::endl;
 #endif
@@ -3936,7 +4030,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 
 #if !MINIMAL_HOOKS
 	{
-		auto lua_OpenWebBrowser_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("OpenWebBrowser")));
+		auto lua_OpenWebBrowser_hash = find_method_entry("OpenWebBrowser");
 #if LOGGING
 		conout << "lua_OpenWebBrowser_hash = " << lua_OpenWebBrowser_hash.as<void*>() << std::endl;
 #endif
@@ -3972,7 +4066,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 	{
-		auto lua_SetSeed_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("SetSeed")));
+		auto lua_SetSeed_hash = find_method_entry("SetSeed");
 #if LOGGING
 		conout << "lua_SetSeed_hash = " << lua_SetSeed_hash.as<void*>() << std::endl;
 #endif
@@ -3990,7 +4084,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 	{
-		auto lua_ChurnSeed_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("ChurnSeed")));
+		auto lua_ChurnSeed_hash = find_method_entry("ChurnSeed");
 #if LOGGING
 		conout << "lua_ChurnSeed_hash = " << lua_ChurnSeed_hash.as<void*>() << std::endl;
 #endif
@@ -4008,7 +4102,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 	{
-		auto lua_SRandom_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("SRandom")));
+		auto lua_SRandom_hash = find_method_entry("SRandom");
 #if LOGGING
 		conout << "lua_SRandom_hash = " << lua_SRandom_hash.as<void*>() << std::endl;
 #endif
@@ -4026,7 +4120,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 	{
-		auto lua_SRandomInt_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("SRandomInt")));
+		auto lua_SRandomInt_hash = find_method_entry("SRandomInt");
 #if LOGGING
 		conout << "lua_SRandomInt_hash = " << lua_SRandomInt_hash.as<void*>() << std::endl;
 #endif
@@ -4044,7 +4138,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 	{
-		auto lua_HashCrc32_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("HashCrc32")));
+		auto lua_HashCrc32_hash = find_method_entry("HashCrc32");
 #if LOGGING
 		conout << "lua_HashCrc32_hash = " << lua_HashCrc32_hash.as<void*>() << std::endl;
 #endif
@@ -4402,7 +4496,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #if !MINIMAL_HOOKS
 	if (!logout_on_request_failure || PRIVATE)
 	{
-		auto lua_WebSubscribeToFailure_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("WebSubscribeToFailure")));
+		auto lua_WebSubscribeToFailure_hash = find_method_entry("WebSubscribeToFailure");
 #if LOGGING
 		conout << "lua_WebSubscribeToFailure_hash = " << lua_WebSubscribeToFailure_hash.as<void*>() << std::endl;
 #endif
@@ -4719,6 +4813,12 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 }
 
+[[nodiscard]] static bool is_data(const void* p) noexcept
+{
+	MEMORY_BASIC_INFORMATION mbi;
+	return p && VirtualQuery(p, &mbi, sizeof(mbi)) && mbi.State == MEM_COMMIT && (mbi.Protect & (PAGE_READONLY | PAGE_READWRITE));
+}
+
 static SOUP_FORCEINLINE void do_pointer_scans()
 {
 	if (game_version >= GV(38, 5, 0))
@@ -4741,7 +4841,7 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 #if LOGGING
 		conout << "raise_script_error_fp_mov = " << raise_script_error_fp_mov.as<void*>() << std::endl;
 #endif
-		SOUP_IF_LIKELY (should_setup_optional_conditional_feature(raise_script_error_fp_mov.as<void*>()))
+		SOUP_IF_LIKELY ((raise_script_error_fp_mov || !lua51) && should_setup_optional_conditional_feature(raise_script_error_fp_mov.as<void*>())) // absent before 2022.02.09.08.55; luaD_throw is hooked there instead
 		{
 			raise_script_error_fp = raise_script_error_fp_mov.add(3).rip().as<raise_script_error_t*>();
 		}
@@ -4759,7 +4859,7 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 	}*/
 
-	if (have_scripting)
+	if (have_scripting && !lua51)
 	{
 		if (game_version >= GV(40, 0, 0))
 		{
@@ -4797,6 +4897,33 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 	{
 		SIG_INST("48 89 74 24 18 57 48 83 EC 20 48 8B F2 48 8B F9 48 85 D2 75 0F 48 8B 74");
 		luau_pushobject = Module(nullptr).range.scan(sig_inst).as<luau_pushobject_t>();
+		if (!luau_pushobject && lua51)
+		{
+			{
+				SIG_INST("48 89 74 24 10 57 48 83 EC 20 48 8B F2 48 8B F9 48 85 D2 75 0F 48 8B 74 24 38"); // before U26 0x20 payload, handle at Object+0x28
+				luau_pushobject = Module(nullptr).range.scan(sig_inst).as<luau_pushobject_t>();
+			}
+			if (!luau_pushobject)
+			{
+				SIG_INST("40 53 48 83 EC 20 48 8B D9 48 85 D2 74 ? 48 8B 4A 10 48 89 74 24 30 48 89 7C 24 38 48 8D 7A 28 48 8B 01 FF 50 40"); // 2017.12.08.15.29 - 2018.05.17.16.28
+				luau_pushobject = Module(nullptr).range.scan(sig_inst).as<luau_pushobject_t>();
+			}
+			if (!luau_pushobject) // 2018.06 - 2019.05 inline it
+			{
+				{
+					SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 41 56 41 57 48 83 EC 20 4C 8B 41 20");
+					lua51_newuserdata = Module(nullptr).range.scan(sig_inst).as<lua51_newuserdata_t>();
+				}
+				{
+					SIG_INST("48 89 5C 24 08 57 48 83 EC 20 48 8B 7A 20 48 8B D9");
+					lua51_set_class_metatable = Module(nullptr).range.scan(sig_inst).as<lua51_set_class_metatable_t>();
+				}
+				if (lua51_newuserdata && lua51_set_class_metatable)
+				{
+					luau_pushobject = &lua51_pushobject_inlined;
+				}
+			}
+		}
 #if LOGGING
 		conout << "luau_pushobject = " << (void*)luau_pushobject << std::endl;
 #endif
@@ -4806,7 +4933,7 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 	}
 
-	if (have_scripting)
+	if (have_scripting && !lua51)
 	{
 		SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 48 8B D9 49 63 F9 48 8B 49 18 49 8B F0");
 		luau_pushcclosurek = Module(nullptr).range.scan(sig_inst).as<luau_pushcclosurek_t>();
@@ -4819,7 +4946,7 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 	}
 
-	if (have_scripting)
+	if (have_scripting && !lua51)
 	{
 		SIG_INST("BA 01 00 00 00 48 8B CB E8 ? ? ? ? 85 C0 74 0B B8 02 00 00 00"); // U37, U38, U40, U41
 		auto lua_next_callsite = Module(nullptr).range.scan(sig_inst);
@@ -4832,7 +4959,7 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 	}
 
-	if (have_scripting)
+	if (have_scripting && !lua51)
 	{
 		SIG_INST("BA 03 00 00 00 48 8B CF E8 ? ? ? ? BA FF FF FF FF");
 		auto luau_gettable_callsite = Module(nullptr).range.scan(sig_inst);
@@ -4845,7 +4972,7 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 	}
 
-	if (have_scripting)
+	if (have_scripting && !lua51)
 	{
 		SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B 49 18 41 8B F0");
 		luau_createtable = Module(nullptr).range.scan(sig_inst).as<luau_createtable_t>();
@@ -4858,7 +4985,7 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 	}
 
-	if (have_scripting)
+	if (have_scripting && !lua51)
 	{
 		if (game_version >= GV(35, 5, 0))
 		{
@@ -4879,7 +5006,7 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 	}
 
-	if (have_scripting)
+	if (have_scripting && !lua51)
 	{
 		if (game_version >= GV(43, 0, 0))
 		{
@@ -4910,6 +5037,116 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 	}
 
+	if (have_scripting && lua51)
+	{
+		{
+			SIG_INST("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 0F B7 41 60 48 8B D9 66 FF C0 41 8B F8 66 89 41 60 48 8B F2 B9 C8 00 00 00");
+			luauD_call = Module(nullptr).range.scan(sig_inst).as<luauD_call_t>();
+		}
+		if (!luauD_call)
+		{
+			SIG_INST("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 66 FF 41 60 48 8B D9 0F B7 41 60"); // 2017.12.08.15.29 - 2018.05.17.16.28
+			luauD_call = Module(nullptr).range.scan(sig_inst).as<luauD_call_t>();
+		}
+		{
+			SIG_INST("48 89 5C 24 08 57 48 83 EC 20 48 8B 51 20 48 8B F9 48 8B 42 70 48 39 42 78 72 05 E8 ? ? ? ? 48 8B 5F 10 48 8D 15 ? ? ? ?");
+			luau_pushstring = Module(nullptr).range.scan(sig_inst).as<luau_pushstring_t>();
+		}
+		if (!luau_pushstring)
+		{
+			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B 49 20 49 8B F0 48 8B EA 48 8B F9"); // lua_pushlstring - before 2020.08.12.19.57 lua_pushstring isn't standalone
+			if ((lua51_pushlstring = Module(nullptr).range.scan(sig_inst).as<lua51_pushlstring_t>()))
+			{
+				luau_pushstring = [](luau_State* L, const char* s) -> const char*
+				{
+					lua51_pushlstring(L, s, strlen(s));
+					return s;
+				};
+			}
+		}
+		{
+			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B 49 20 41 8B F0 8B EA 48 8B F9");
+			luau_createtable = Module(nullptr).range.scan(sig_inst).as<luau_createtable_t>();
+		}
+		{
+			SIG_INST("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 4C 8B 49 20 48 8B F2 49 63 F8 48 8B D9 49 8B 41 70 49 39 41 78 72 05 E8 ? ? ? ?");
+			lua51_pushcclosure = Module(nullptr).range.scan(sig_inst).as<lua51_pushcclosure_t>();
+		}
+		if (!lua51_pushcclosure)
+		{
+			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B 49 20 48 8B EA 49 63 F8 48 8B D9"); // 2017.12.08.15.29 - 2018.05.17.16.28
+			lua51_pushcclosure = Module(nullptr).range.scan(sig_inst).as<lua51_pushcclosure_t>();
+		}
+		{
+			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 41 54 41 55 41 56 41 57 48 83 EC 30 4D 8B F9 4C 8D 25 ? ? ? ? 4D 8B F0");
+			lua51_luaV_gettable = Module(nullptr).range.scan(sig_inst).as<lua51_luaV_access_t>();
+		}
+		if (!lua51_luaV_gettable)
+		{
+			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 48 89 7C 24 20 41 54 41 56 41 57 48 83 EC 30 4D 8B F9"); // 2017.12.08.15.29 - 2018.04.20.02.04
+			lua51_luaV_gettable = Module(nullptr).range.scan(sig_inst).as<lua51_luaV_access_t>();
+		}
+		{
+			SIG_INST("4D 8D 48 F0 49 83 C0 E0 E8 ? ? ? ? 48 83 43 10 E0"); // lua_settable's call
+			if (auto callsite = Module(nullptr).range.scan(sig_inst))
+			{
+				lua51_luaV_settable = callsite.add(9).rip().as<lua51_luaV_access_t>();
+			}
+			else
+			{
+				SIG_INST("48 89 5C 24 10 48 89 6C 24 18 56 41 54 41 55 41 56 41 57 48 83 EC 40 4D 8B E1"); // 2017.12.08.15.29 - 2018.05.17.16.28
+				lua51_luaV_settable = Module(nullptr).range.scan(sig_inst).as<lua51_luaV_access_t>();
+			}
+		}
+		{
+			SIG_INST("49 83 E8 10 E8 ? ? ? ? 85 C0 48 C7 C1 F0 FF FF FF 41 B8 10 00 00 00 49 0F 45 C8 48 01 4B 10"); // lua_next call
+			if (auto callsite = Module(nullptr).range.scan(sig_inst))
+			{
+				lua51_luaH_next = callsite.add(5).rip().as<lua51_luaH_next_t>();
+			}
+			else
+			{
+				SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 41 8B 78 08"); // 2017.12.08.15.29 - 2018.05.17.16.28
+				lua51_luaH_next = Module(nullptr).range.scan(sig_inst).as<lua51_luaH_next_t>();
+			}
+		}
+#if LOGGING
+		conout << "lua51: luaD_call = " << (void*)luauD_call << ", pushstring = " << (void*)luau_pushstring << ", createtable = " << (void*)luau_createtable << ", pushcclosure = " << (void*)lua51_pushcclosure
+			<< ", luaV_gettable = " << (void*)lua51_luaV_gettable << ", luaV_settable = " << (void*)lua51_luaV_settable << ", luaH_next = " << (void*)lua51_luaH_next << std::endl;
+#endif
+		SOUP_IF_UNLIKELY (!luauD_call || !luau_pushstring || !luau_createtable || !lua51_pushcclosure || !lua51_luaV_gettable || !lua51_luaV_settable || !lua51_luaH_next)
+		{
+			log_optional_scan_failure(false);
+		}
+		else
+		{
+			lua51_luaD_throw_hook.detour = reinterpret_cast<void*>(&lua51_luaD_throw_detour);
+			lua51_luaD_throw_hook.target = Pointer(reinterpret_cast<void*>(luauD_call)).add(*reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(luauD_call) + 0x52) == 0xE8 ? 0x53 : 0x50).rip().as<void*>(); // luaD_call's call to luaD_throw
+			lua51_luaD_throw_hook.create();
+			lua51_luaD_throw_hook.enable();
+			luau_pushcclosurek = [](luau_State* L, luau_CFunction func, const char*, int nup, luau_Continuation)
+			{
+				lua51_pushcclosure(L, func, nup);
+			};
+			luau_gettable = [](luau_State* L, int idx) -> int
+			{
+				lua51_luaV_gettable(L, lua51_index2adr(L, idx), L->outtop() - 1, L->outtop() - 1);
+				return L->outtop()[-1].type();
+			};
+			luau_settable = [](luau_State* L, int idx)
+			{
+				lua51_luaV_settable(L, lua51_index2adr(L, idx), L->outtop() - 2, L->outtop() - 1);
+				L->outtop() -= 2;
+			};
+			luau_next = [](luau_State* L, int idx) -> int
+			{
+				const int more = lua51_luaH_next(L, reinterpret_cast<void*>(lua51_index2adr(L, idx)->value.as_uintptr), L->outtop() - 1);
+				L->outtop() += (more ? 1 : -1);
+				return more;
+			};
+		}
+	}
+
 	if (have_scripting)
 	{
 		Pointer res[20]; // 11 results in U35.1 & U38
@@ -4921,7 +5158,7 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 			type_arr_end_offset = 29;
 			nres = Module(nullptr).range.scanWithMultipleResults(sig_inst, res);
 		}
-		else if (game_version >= GV(38, 0, 0))
+		else if (game_version >= GV(37, 0, 0)) // 2024.11.14.13.25 already uses this shape
 		{
 			SIG_INST("48 8D 05 ? ? ? ? 48 89 35 ? ? ? ? 48 89 05 ? ? ? ? BF 01 00 00 00 48 8D 05 ? ? ? ? 48 89 05 ? ? ? ? EB");
 			type_arr_end_offset = 29;
@@ -4951,15 +5188,32 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 #endif
 			for (auto entry = type_arr; entry != type_arr_end && *entry; ++entry)
 			{
-				if ((*entry)->type_desc)
+				if ((*entry)->type_desc())
 				{
 #if LOGGING
 					//conout << "\t- " << (*entry)->type_name << " " << (*entry)->field_name << std::endl;
 #endif
-					swig_types.emplace(soup::joaat::hashRange((*entry)->type_name, strlen((*entry)->type_name) - 2), (*entry)->type_desc);
+					swig_types.emplace(soup::joaat::hashRange((*entry)->type_name, strlen((*entry)->type_name) - 2), (*entry)->type_desc());
 #if PRIVATE
 					swig_type_names.emplace_back(std::string((*entry)->type_name, strlen((*entry)->type_name) - 2));
 #endif
+				}
+			}
+		}
+		if (nres == 0 && lua51) // before 2019 the module init differs
+		{
+			const auto [begin, end] = module_bounds();
+			const auto is_str = [=](uintptr_t p) { return p >= begin && p < end; };
+			for (auto q = reinterpret_cast<SwigTypeField*>(begin); reinterpret_cast<uintptr_t>(q + 1) + 0x30 < end; q = reinterpret_cast<SwigTypeField*>(reinterpret_cast<uintptr_t>(q) + 8))
+			{
+				if (is_str(reinterpret_cast<uintptr_t>(q->field_name)) && memcmp(q->field_name, "_p_", 3) == 0 && is_str(reinterpret_cast<uintptr_t>(q->type_name)) && is_str(reinterpret_cast<uintptr_t>(q->type_desc())))
+				{
+					const size_t len = strlen(q->type_name);
+					if (len > 2 && q->type_name[len - 1] == '*')
+					{
+						swig_types.emplace(soup::joaat::hashRange(q->type_name, len - 2), q->type_desc());
+						++nres;
+					}
 				}
 			}
 		}
@@ -4974,22 +5228,55 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 
 	if (have_scripting && game_version < GV(40, 0, 0))
 	{
-		Pointer res[7]; // In U37 there's an 8th match that's not an enum so we need to ignore that one.
-		int nres;
-		if (game_version >= GV(38, 0, 0))
+		Pointer res[40];
+		int nres = 0;
+		int rip_offset = 3;
+		if (lua51)
+		{
+			// SWIG_Lua_InstallConstants call sites so the same call shape also registers non-enum tables, filtered below
+			{
+				SIG_INST("8B 05 ? ? ? ? 4C 8D 25 ? ? ? ? 45 33 F6"); // 2022.02.09.08.55 - 2022.11.30.08.13, loop inlined
+				nres = Module(nullptr).range.scanWithMultipleResults(sig_inst, res);
+				rip_offset = 2;
+			}
+			if (std::none_of(res, res + nres, [](Pointer p) { auto t = p.add(2).rip().as<SwigEnum*>(); return is_data(t) && is_data(t->name); })) // 2018.10.11.23.29 has one unrelated match
+			{
+				SIG_INST("48 8D 15 ? ? ? ? 48 8B CB E8 ? ? ? ? BA FE FF FF FF"); // 2019.08.29.20.01 - 2021.12.21.14.24
+				nres = Module(nullptr).range.scanWithMultipleResults(sig_inst, res);
+				rip_offset = 3;
+			}
+		}
+		else if (game_version >= GV(38, 0, 0))
 		{
 			SIG_INST("48 8B 05 ? ? ? ? 4C 8D ? ? ? ? ? 4D 8B");
-			nres = Module(nullptr).range.scanWithMultipleResults(sig_inst, res);
+			nres = Module(nullptr).range.scanWithMultipleResults(sig_inst, res, 7); // U37 has an 8th match that's not an enum
 		}
 		else
 		{
 			SIG_INST("? 8B 05 ? ? ? ? 4C 8D ? ? ? ? ? 4D 8B");
-			nres = Module(nullptr).range.scanWithMultipleResults(sig_inst, res);
+			nres = Module(nullptr).range.scanWithMultipleResults(sig_inst, res, 7);
 		}
 		swig_enums1.reserve(nres);
 		for (int i = 0; i != nres; ++i)
 		{
-			swig_enums1.emplace_back(res[i].add(3).rip().as<SwigEnum*>());
+			const auto table = res[i].add(rip_offset).rip().as<SwigEnum*>();
+			if (!lua51 || is_data(table->name)) // enum names live in .rdata; the other tables start with a code pointer
+			{
+				swig_enums1.emplace_back(table);
+			}
+		}
+		if (swig_enums1.empty() && lua51) // before 2018.06 the install calls differ
+		{
+			const auto [begin, end] = module_bounds();
+			const auto is_rec = [=](uintptr_t r) { const auto e = reinterpret_cast<const SwigEnum*>(r); return *reinterpret_cast<const uint64_t*>(r) == 1 && reinterpret_cast<uintptr_t>(e->name) >= begin && reinterpret_cast<uintptr_t>(e->name) < end && e->name[0] >= 'A' && e->name[0] <= 'Z'; };
+			for (uintptr_t r = begin + sizeof(SwigEnum); r + sizeof(SwigEnum) * 2 < end; r += 8)
+			{
+				if (is_rec(r) && !is_rec(r - sizeof(SwigEnum)) && is_rec(r + sizeof(SwigEnum)))
+				{
+					swig_enums1.emplace_back(reinterpret_cast<SwigEnum*>(r));
+				}
+			}
+			nres = static_cast<int>(swig_enums1.size());
 		}
 		if (nres == 0)
 		{
@@ -5178,7 +5465,10 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 		// Load version config (depends on tunables)
 		strip_tls = game_version < g_client_tunables.getInt(joaat::compileTimeHash("min_gv_for_tls"));
 		force_disable_overlay = game_version < g_client_tunables.getInt(joaat::compileTimeHash("min_gv_for_overlay"));
-		have_scripting = game_version >= g_client_tunables.getInt(joaat::compileTimeHash("min_gv_for_scripting"));
+		have_scripting = game_version >= g_client_tunables.getInt(joaat::compileTimeHash("min_gv_for_scripting"))
+			&& !(game_version >= GV(28, 0, 0) && game_version < GV(28, 3, 2));
+		lua51 = game_version < GV(32, 3, 0);
+		swig_names_are_strings = have_scripting && game_version < GV(22, 20, 2);
 
 		// Load config (depends on repo & version config)
 		if (!std::filesystem::exists("OpenWF/Client Config.json"))

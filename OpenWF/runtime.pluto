@@ -144,6 +144,13 @@ class owfUserdata
 	end
 end
 
+local function ivkr_pop_new(cls)
+	if ivkr_type(-1) > 0 then
+		return new cls()
+	end
+	ivkr_pop(1)
+end
+
 class owfProxy extends owfUserdata
 	function __index(name)
 		if owfUserdata[name] then
@@ -217,7 +224,7 @@ class ObjectType extends owfUserdata
 	__name = "ObjectType"
 
 	function __eq(other)
-		return self:GetFullName() == other:GetFullName()
+		return other instanceof ObjectType and self:GetFullName() == other:GetFullName()
 	end
 
 	function GetName()
@@ -269,6 +276,9 @@ class Object extends owfUserdata
 	__name = "Object"
 
 	function __eq(other)
+		if not (other instanceof Object) then
+			return false
+		end
 		self:pushToIvkr()
 		if addr := ivkr_pop_object() then
 			other:pushToIvkr()
@@ -317,7 +327,7 @@ class Player extends Object
 	function GetAvatar()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("Player", "GetAvatar"), 1)
-		return new LotusAvatar()
+		return ivkr_pop_new(LotusAvatar)
 	end
 
 	function GetPlayerName()
@@ -347,13 +357,13 @@ class Player extends Object
 	function GetHudStatus()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("Player", "GetHudStatus"), 1)
-		return new LotusHudStatus()
+		return ivkr_pop_new(LotusHudStatus)
 	end
 
 	function CameraControl()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("Player", "CameraControl"), 1)
-		return new CameraControllerBase()
+		return ivkr_pop_new(CameraControllerBase)
 	end
 end
 
@@ -373,6 +383,10 @@ class HumanPlayer extends Player
 
 	function SetFreeCameraLocked(b)
 		self:pushToIvkr()
+		if compareversions(owf_get_build_version(), "2022.04.29.12.53") < 0 then
+			mem_write_i8(ivkr_pop_object() + 0x151, b ? 1 : 0) -- older builds read this flag (IsFreeCameraLockedActive) but have no setter
+			return
+		end
 		ivkr_push_bool(b)
 		ivkr_call(ivkr_find_method("HumanPlayer", "SetFreeCameraLocked"), 2)
 	end
@@ -421,7 +435,7 @@ class LotusHumanPlayer extends HumanPlayer
 	function GetLoadOut()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("LotusHumanPlayer", "GetLoadOut"), 1)
-		return new LotusProfileTypes.LoadOut()
+		return ivkr_pop_new(LotusProfileTypes.LoadOut)
 	end
 end
 
@@ -435,7 +449,7 @@ class LotusProfileTypes.LoadOut extends owfUserdata
 		ivkr_push_int(i1)
 		ivkr_push_int(i2)
 		ivkr_call(ivkr_find_method("LotusProfileTypes::LoadOut", "GetStoredItemStruct"), 3)
-		return new LotusProfileTypes.StoredItem()
+		return ivkr_pop_new(LotusProfileTypes.StoredItem)
 	end
 end
 
@@ -501,7 +515,7 @@ class LotusProfileTypes.WeaponInfo extends owfUserdata
 	function GetCustomization()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("LotusProfileTypes::WeaponInfo", "GetCustomization"), 1)
-		return new WeaponCustomization()
+		return ivkr_pop_new(WeaponCustomization)
 	end
 end
 
@@ -583,7 +597,7 @@ class Entity extends BaseEntity
 	end
 
 	function DistanceToEntity(b)
-		return GetPosition():distance(b:GetPosition())
+		return self:GetPosition():distance(b:GetPosition())
 	end
 
 	function GetRotation()
@@ -763,7 +777,7 @@ class BaseAvatar extends Entity
 	function DamageControl()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("BaseAvatar", "DamageControl"), 1)
-		return new LotusDamageController()
+		return ivkr_pop_new(LotusDamageController)
 	end
 
 	function InventoryControl()
@@ -827,6 +841,12 @@ class BaseAvatar extends Entity
 		return ivkr_pop_rotation()
 	end
 
+	function GetInputFilter()
+		self:pushToIvkr()
+		ivkr_call(ivkr_find_method("BaseAvatar", "GetInputFilter"), 1)
+		return ivkr_pop_new(Object)
+	end
+
 	function SetCameraView(rot)
 		self:pushToIvkr()
 		ivkr_push_rotation(rot)
@@ -887,7 +907,7 @@ class BaseAvatar extends Entity
 	function GetAnimControllerType()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("BaseAvatar", "GetAnimControllerType"), 1)
-		return new ObjectType()
+		return ivkr_pop_new(ObjectType)
 	end
 
 	function SetCustomMotionController(type)
@@ -1119,7 +1139,7 @@ class InventoryControllerBase extends Object
 		self:pushToIvkr()
 		ivkr_push_int(hand)
 		ivkr_call(ivkr_find_method("InventoryControllerBase", "GetWeaponInHand"), 2)
-		return new LotusWeapon()
+		return ivkr_pop_new(LotusWeapon)
 	end
 
 	function AddUpgrade(upgradeType, operationType, value, _, _, damageType = DamageType.DT_ANY)
@@ -1228,7 +1248,7 @@ class WeaponEx extends WeaponBase
 	function GetActiveImpactBehavior()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("WeaponEx", "GetActiveImpactBehavior"), 1)
-		return new WeaponImpactBehavior()
+		return ivkr_pop_new(WeaponImpactBehavior)
 	end
 
 	function AddUpgrade(obj)
@@ -1256,7 +1276,7 @@ class LotusWeapon extends WeaponEx
 	function GetCustomization()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("LotusWeapon", "GetCustomization"), 1)
-		return new WeaponCustomization()
+		return ivkr_pop_new(WeaponCustomization)
 	end
 
 	function SetCustomization(cust)
@@ -1508,13 +1528,13 @@ class LotusBaseGameRules extends GameRulesImpl
 	function GetCurrentStarChart()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("LotusBaseGameRules", "GetCurrentStarChart"), 1)
-		return new RadialSolarMap()
+		return ivkr_pop_new(RadialSolarMap)
 	end
 
 	function GetStoreManifest()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("LotusBaseGameRules", "GetStoreManifest"), 1)
-		return new StoreManifest()
+		return ivkr_pop_new(StoreManifest)
 	end
 
 	function AddActiveLevelAuraUpgrade(type)
@@ -1532,7 +1552,7 @@ class LotusBaseGameRules extends GameRulesImpl
 	function GetMission()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("LotusBaseGameRules", "GetMission"), 1)
-		return new LotusMissionInfo()
+		return ivkr_pop_new(LotusMissionInfo)
 	end
 
 	function IsPlayingHardGameModeMission()
@@ -1573,13 +1593,13 @@ class LotusAttractModeGameRules extends GameRulesImpl
 	function GetStarChart()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("LotusAttractModeGameRules", "GetStarChart"), 1)
-		return new RadialSolarMap()
+		return ivkr_pop_new(RadialSolarMap)
 	end
 
 	function GetStoreManifest()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("LotusAttractModeGameRules", "GetStoreManifest"), 1)
-		return new StoreManifest()
+		return ivkr_pop_new(StoreManifest)
 	end
 end
 
@@ -1596,7 +1616,7 @@ class RadialSolarMap extends Object
 		self:pushToIvkr()
 		symbol:pushToIvkr()
 		ivkr_call(ivkr_find_method("RadialSolarMap", "BuildMissionForLocation"), 2)
-		return new LotusMissionInfo()
+		return ivkr_pop_new(LotusMissionInfo)
 	end
 
 	function SetLevelStreamingArgs(locationSymbol, openLevelArgs)
@@ -1686,7 +1706,7 @@ class RadialSector extends owfUserdata
 			case "mission":
 				self:pushToIvkr()
 				ivkr_call(ivkr_find_getter("RadialSector", "mission"), 1)
-				return new LotusMissionInfo()
+				return ivkr_pop_new(LotusMissionInfo)
 
 			case "founders":
 				self:pushToIvkr()
@@ -1765,7 +1785,7 @@ class LotusMissionInfo extends owfUserdata
 			case "miscItemFee":
 				self:pushToIvkr()
 				ivkr_call(ivkr_find_getter("LotusMissionInfo", name), 1)
-				return new CountedItem()
+				return ivkr_pop_new(CountedItem)
 		end
 		error("Unknown field: "..name)
 	end
@@ -1845,7 +1865,7 @@ class MissionReward extends owfUserdata
 			case "randomizedItems":
 				self:pushToIvkr()
 				ivkr_call(ivkr_find_getter("MissionReward", name), 1)
-				return new MissionRewardItemManifest()
+				return ivkr_pop_new(MissionRewardItemManifest)
 		end
 		error("Unknown field: "..name)
 	end
@@ -1873,7 +1893,7 @@ class MissionRewardItemManifest extends ResourceBase
 		ivkr_push_int(tier)
 		ivkr_push_int(i)
 		ivkr_call(ivkr_find_method("MissionRewardItemManifest", "GetTieredItem"), 3)
-		return new MissionRewardItem()
+		return ivkr_pop_new(MissionRewardItem)
 	end
 end
 
@@ -1883,7 +1903,7 @@ class MissionRewardItem extends owfUserdata
 	function GetStoreItem()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("MissionRewardItem", "GetStoreItem"), 1)
-		return new StoreItem()
+		return ivkr_pop_new(StoreItem)
 	end
 end
 
@@ -2279,7 +2299,7 @@ class EngineNpcMgr extends Object
 	function GetAiDirector()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("EngineNpcMgr", "GetAiDirector"), 1)
-		return new EngineAiDirector()
+		return ivkr_pop_new(EngineAiDirector)
 	end
 end
 
@@ -2360,7 +2380,7 @@ class NpcManager extends EngineNpcMgr
 		;(optionalSymbol or EMPTY_SYMBOL):pushToIvkr()
 		ivkr_push_int(optionalLevel or 0)
 		ivkr_call(ivkr_find_method("NpcManager", "CreateAgentAtPosition"), 6)
-		return new EngineNpcAgent()
+		return ivkr_pop_new(EngineNpcAgent)
 	end
 end
 
@@ -2370,7 +2390,7 @@ class EngineNpcAgent extends Object
 	function GetAvatar()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("EngineNpcAgent", "GetAvatar"), 1)
-		return new LotusNpcAvatar()
+		return ivkr_pop_new(LotusNpcAvatar)
 	end
 end
 
@@ -2492,7 +2512,7 @@ class LotusHudStatusTypes.FlashMarker extends owfUserdata
 			case "baseMarkerInfo":
 				self:pushToIvkr()
 				ivkr_call(ivkr_find_getter("LotusHudStatusTypes::FlashMarker", "baseMarkerInfo"), 1)
-				return new BaseMarkerInfo()
+				return ivkr_pop_new(BaseMarkerInfo)
 		end
 		error("Unknown field: "..name)
 	end
@@ -2596,7 +2616,7 @@ class WeaponCustomization extends owfUserdata
 		self:pushToIvkr()
 		ivkr_push_int(i)
 		ivkr_call(ivkr_find_method("WeaponCustomization", "GetColors"), 2)
-		return new CustomizationColorPalette()
+		return ivkr_pop_new(CustomizationColorPalette)
 	end
 
 	function SetColors(i, v)
@@ -2702,6 +2722,9 @@ class FlashInstance extends OverlayBase
 	end
 
 	function Execute(func, str)
+		if func == "EnableHints" and compareversions(owf_get_build_version(), "2023.02.13.10.22") < 0 then
+			return -- Lua 5.1 builds show an empty Input/Feedback bar instead
+		end
 		self:pushToIvkr()
 		ivkr_push_string(func)
 		ivkr_push_string(str)
@@ -2747,7 +2770,7 @@ class PlayerProfile extends owfUserdata
 	function GetGameSpecificData()
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("PlayerProfile", "GetGameSpecificData"), 1)
-		return new LotusProfileData()
+		return ivkr_pop_new(LotusProfileData)
 	end
 end
 
@@ -2787,7 +2810,7 @@ class LevelInfo extends owfUserdata
 			case "postProcess":
 				self:pushToIvkr()
 				ivkr_call(ivkr_find_getter("LevelInfo", name), 1)
-				return new PostProcess()
+				return ivkr_pop_new(PostProcess)
 		end
 	end
 end
@@ -2964,7 +2987,7 @@ end
 function WeakResource(name)
 	ivkr_push_string(name)
 	ivkr_call(ivkr_find_global("WeakResource"), 1)
-	return new ObjectType()
+	return ivkr_pop_new(ObjectType)
 end
 
 function Range(minValue, maxValue)
@@ -3005,7 +3028,7 @@ function UISys.ScriptResLoader_Create(names)
 		ivkr_settable(-3)
 	end
 	ivkr_call(ivkr_find_global("ScriptResLoader_Create"), 1)
-	return new UISys.ScriptResLoader()
+	return ivkr_pop_new(UISys.ScriptResLoader)
 end
 
 function AngleToDirection(rot)
@@ -3110,7 +3133,7 @@ gRegion = {
 	function GetNpcMgr()
 		ivkr_push_object(get_regionmgr())
 		ivkr_call(ivkr_find_method("RegionMgrImpl", "GetNpcMgr"), 1)
-		return new NpcManager()
+		return ivkr_pop_new(NpcManager)
 	end,
 	function Raycast(fromPos, toPos, avatar, _, outPos)
 		ivkr_call(ivkr_find_ctor("Vector3"), 0)
@@ -3136,7 +3159,7 @@ gRegion = {
 	function GetLevelInfo()
 		ivkr_push_object(get_regionmgr())
 		ivkr_call(ivkr_find_method("RegionMgrImpl", "GetLevelInfo"), 1)
-		return new LevelInfo()
+		return ivkr_pop_new(LevelInfo)
 	end,
 }
 
@@ -3171,7 +3194,7 @@ gFlashMgr = {
 		ivkr_push_object(get_flashmgr())
 		resource:pushToIvkr()
 		ivkr_call(ivkr_find_method("FlashMgr", "GotoMovie"), 2)
-		return new FlashInstance()
+		return ivkr_pop_new(FlashInstance)
 	end,
 }
 
@@ -3185,7 +3208,7 @@ gPlayerProfileMgr = {
 		ivkr_push_object(get_profilemgr())
 		ivkr_push_int(i)
 		ivkr_call(ivkr_find_method("PlayerProfileMgr", "GetPlayerProfile"), 2)
-		return new PlayerProfile()
+		return ivkr_pop_new(PlayerProfile)
 	end,
 }
 
@@ -3193,7 +3216,7 @@ gClient = {
 	function GetOverlayMgr()
 		ivkr_push_object(get_client())
 		ivkr_call(ivkr_find_method("Client", "GetOverlayMgr"), 1)
-		return new OverlayMgr()
+		return ivkr_pop_new(OverlayMgr)
 	end
 }
 
@@ -3488,15 +3511,21 @@ UpgradeType = setmetatable({}, {
 	__index = |t, k| -> rawset(t, k, ivkr_get_enum_value(k))[k]
 })
 
-OperationType = {
+OperationType = compareversions(owf_get_build_version(), "2022.11.30.08.13") >= 0 and {
 	ADD = 0,
 	ADD_BASE = 1,
 	MULTIPLY = 2,
 	STACKING_MULTIPLY = 3,
 	SET = 4,
 	SET_BASE = 5,
-	SET_MIN = 6,
+	SET_MIN = 6, -- 2024.12.11.14.26 onwards
 	SET_MAX = 7
+} or { -- ADD_BASE was inserted at 1 in 2022.11.30.08.13; SET_BASE exists from 2020.03.24.20.24
+	ADD = 0,
+	MULTIPLY = 1,
+	STACKING_MULTIPLY = 2,
+	SET = 3,
+	SET_BASE = 4
 }
 
 DamageType = UpgradeType
@@ -3572,7 +3601,8 @@ ivkr_typename = function(idx)
 end
 
 function ivkr_push_global(name)
-	if compareversions(owf_get_build_version(), "2025.10.14.16.10") >= 0 then
+	local bv = owf_get_build_version()
+	if compareversions(bv, "2025.10.14.16.10") >= 0 or (compareversions(bv, "2020.08.12.19.57") >= 0 and compareversions(bv, "2023.02.13.10.22") < 0) then -- Lua 5.1 with wf_fnv_1 also keys globals by hash
 		ivkr_push_int_as_bool(ivkr_hash(name))
 	else
 		ivkr_push_string(name)

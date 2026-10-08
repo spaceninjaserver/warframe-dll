@@ -16,6 +16,7 @@ inline bool prohibit_scripts = false;
 
 extern std::string get_bootstrapper_title();
 extern void owf_set_build_hash(const char build_hash[22]);
+extern void set_active_input_filter(std::string filter);
 extern bool set_server_tunables(const char* data, size_t size, bool delta = false);
 extern void set_udp_proxy_upstream(const std::string& addr);
 extern bool owf_command(const std::string& in, soup::JsonObject& out);
