@@ -2987,22 +2987,22 @@ static Pointer find_method_entry(const char* name, const char* prev = nullptr)
 	{
 		return Module(nullptr).range.scan(hash_to_pattern(wf_hash(name)));
 	}
+	const auto range = Module(nullptr).range;
 	const auto [lo, hi] = module_bounds();
-	const auto begin = reinterpret_cast<const char*>(lo);
-	const auto end = reinterpret_cast<const char*>(hi);
 	const auto in_module = [=](uintptr_t p) { return p >= lo && p < hi; };
-	const size_t len = strlen(name) + 1;
-	for (auto s = std::search(begin + 1, end, name, name + len); s != end; s = std::search(s + 1, end, name, name + len))
+	const std::string str = std::string(1, '\0') + name + '\0';
+	const std::string str_mask(str.size(), 'x');
+	Pointer strs[8];
+	for (size_t i = 0, n = range.scanWithMultipleResults(Pattern(str.data(), str_mask.c_str()), strs); i != n; ++i)
 	{
-		if (s[-1] != 0)
+		const uintptr_t s = strs[i].as<uintptr_t>() + 1;
+		Pointer refs[8];
+		for (size_t j = 0, m = range.scanWithMultipleResults(Pattern(reinterpret_cast<const char*>(&s), "xxxxxxxx"), refs); j != m; ++j)
 		{
-			continue;
-		}
-		for (auto q = reinterpret_cast<const uintptr_t*>(begin) + 2; q + 1 < reinterpret_cast<const uintptr_t*>(end); ++q)
-		{
-			if (*q == reinterpret_cast<uintptr_t>(s) && in_module(q[1]) && (!prev || (in_module(q[-2]) && strcmp(reinterpret_cast<const char*>(q[-2]), prev) == 0)))
+			const auto q = refs[j].as<const uintptr_t*>();
+			if (refs[j].as<uintptr_t>() % 8 == 0 && in_module(q[1]) && (!prev || (in_module(q[-2]) && strcmp(reinterpret_cast<const char*>(q[-2]), prev) == 0)))
 			{
-				return Pointer(const_cast<uintptr_t*>(q));
+				return refs[j];
 			}
 		}
 	}
@@ -4008,7 +4008,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #endif
 
 #if !MINIMAL_HOOKS
-	if (game_version >= GV(33, 0, 0) || have_scripting) // // U32 Veilbreaker (2022.09.06.19.24) seems to crash in this detour, might work now that it's version aware - untested
+	if (have_scripting) // U32 Veilbreaker (2022.09.06.19.24) crashed in this detour before it was version-aware, untested
 	{
 		auto lua_FlashInstance_GetStringVariable_hash = swig_names_are_strings ? find_method_entry("GetVariable", "SetVariable") : Module(nullptr).range.scan(game_version >= GV(28, 3, 2) ? hash_to_pattern(wf_hash("GetStringVariable")) : hash_to_pattern(wf_hash("SetStringVariable"), wf_hash("SetVariable")));
 		if (lua_FlashInstance_GetStringVariable_hash && game_version < GV(28, 3, 2) && !swig_names_are_strings)

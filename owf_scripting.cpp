@@ -2220,7 +2220,7 @@ void owfScript::openBgscriptLibs()
 	{
 		lua_pushcfunction(L, [](lua_State* L) -> int
 		{
-			set_active_input_filter(luaL_checkstring(L, 1));
+			set_active_input_filter(pluto_checkstring(L, 1));
 			return 0;
 		});
 		OWF_SET_GLOBAL(L, "owf_set_active_input_filter"); // builds before 2021.12.15 don't log InitMapping, so bgscript polls the filter
