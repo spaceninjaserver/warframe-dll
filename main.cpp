@@ -1783,9 +1783,10 @@ static void register_enum_detour(void* a1, GameRange<const char*>& names, GameRa
 static ReplacementHook get_profile_dir_hook;
 static uint32_t get_profile_dir_offset;
 
-static GameString* get_profile_dir_detour(uintptr_t a1)
+template <typename Str>
+static Str* get_profile_dir_detour(uintptr_t a1)
 {
-	auto str = reinterpret_cast<GameString*>(a1 + get_profile_dir_offset);
+	auto str = reinterpret_cast<Str*>(a1 + get_profile_dir_offset);
 	str->setUnownedData(forced_profile_dir.data(), forced_profile_dir.size());
 	return str;
 }
@@ -3093,18 +3094,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 		}
 		auto game_http_request = game_http_request_caller.add(offset).rip().as<void*>();
 		GameHttpRequest_body_offset = g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/GameHttpRequest_body.json"), game_version);
-		if (game_version >= GV(35, 5, 0))
-		{
-			game_http_request_hook.detour = reinterpret_cast<void*>(&game_http_request_detour<GameString>);
-		}
-		else if (game_version >= GV(19, 0, 0))
-		{
-			game_http_request_hook.detour = reinterpret_cast<void*>(&game_http_request_detour<LegacyGameString>);
-		}
-		else
-		{
-			game_http_request_hook.detour = reinterpret_cast<void*>(&game_http_request_detour<LegacyGameStringU18>);
-		}
+		game_http_request_hook.detour = GAME_STRING_FN(game_http_request_detour);
 		game_http_request_hook.target = game_http_request;
 		game_http_request_hook.code_cave = Module(nullptr).range.scan(CompactDetourHook::getCodeCavePattern()).as<void*>(); // Needed for 2017.03.06.15.49
 #if LOGGING
@@ -3344,26 +3334,8 @@ static SOUP_FORCEINLINE void create_all_hooks()
 		{
 			auto parse_arguments = parse_arguments_callsite.add(24).rip().as<void*>();
 
-			/*if (game_version >= GV(39, 0, 0))
-			{
-				parse_arguments_hook.detour = reinterpret_cast<void*>(&parse_arguments_detour<GameString, true, true>);
-			}
-			else*/ if (game_version >= GV(35, 5, 0))
-			{
-				parse_arguments_hook.detour = reinterpret_cast<void*>(&parse_arguments_detour<GameString/*, false, true*/>);
-			}
-			/*else if (game_version >= GV(28, 0, 0))
-			{
-				parse_arguments_hook.detour = reinterpret_cast<void*>(&parse_arguments_detour<LegacyGameString, false, true>);
-			}*/
-			else if (game_version >= GV(19, 0, 0))
-			{
-				parse_arguments_hook.detour = reinterpret_cast<void*>(&parse_arguments_detour<LegacyGameString/*, false, false*/>);
-			}
-			else
-			{
-				parse_arguments_hook.detour = reinterpret_cast<void*>(&parse_arguments_detour<LegacyGameStringU18/*, false, false*/>);
-			}
+			// languageVO: >= U39, graphicsDriver: >= U28
+			parse_arguments_hook.detour = GAME_STRING_FN(parse_arguments_detour);
 			parse_arguments_hook.target = parse_arguments;
 			parse_arguments_hook.create();
 			parse_arguments_hook.enable();
@@ -3446,18 +3418,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #endif
 		SOUP_IF_LIKELY (name_lookup)
 		{
-			/*if (game_version >= GV(35, 5, 0))
-			{
-				name_lookup_hook.detour = reinterpret_cast<void*>(&name_lookup_detour<GameString>);
-			}
-			else*/ if (game_version >= GV(19, 0, 0))
-			{
-				name_lookup_hook.detour = reinterpret_cast<void*>(&name_lookup_detour<LegacyGameString>);
-			}
-			else
-			{
-				name_lookup_hook.detour = reinterpret_cast<void*>(&name_lookup_detour<LegacyGameStringU18>);
-			}
+			name_lookup_hook.detour = GAME_STRING_FN(name_lookup_detour);
 			name_lookup_hook.target = name_lookup;
 			name_lookup_hook.create();
 			name_lookup_hook.enable();
@@ -3828,45 +3789,32 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 #if !MINIMAL_HOOKS
-	if ((!forced_profile_dir.empty() || PRIVATE)
-		&& game_version >= GV(35, 5, 0)
-		)
+	if (!forced_profile_dir.empty() || PRIVATE)
 	{
-		// "Using profile dir "
-		Pointer get_profile_dir;
-		size_t offset_offset;
-		if (game_version >= GV(40, 0, 0))
+		if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/get_profile_dir.json"), game_version); !sig_inst.bytes.empty())
 		{
-			SIG_INST("40 55 53 56 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 48 8D 99 ? ? ? ? 48 8B F1");
-			get_profile_dir = Module(nullptr).range.scan(sig_inst);
-			offset_offset = (0x0000000140EB0D24 - 0x0000000140EB0D00) + 3;
-		}
-		else
-		{
-			SIG_INST("40 55 53 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 0F B6 81 ? ? ? ? 48 8D 99");
-			get_profile_dir = Module(nullptr).range.scan(sig_inst);
-			offset_offset = 46;
-		}
+			auto get_profile_dir = Module(nullptr).range.scan(sig_inst);
 #if LOGGING
-		conout << "get_profile_dir = " << get_profile_dir.as<void*>() << std::endl;
+			conout << "get_profile_dir = " << get_profile_dir.as<void*>() << std::endl;
 #endif
-		SOUP_IF_LIKELY (get_profile_dir)
-		{
-			if (!forced_profile_dir.empty())
+			SOUP_IF_LIKELY (get_profile_dir)
 			{
-				get_profile_dir_hook.detour = reinterpret_cast<void*>(&get_profile_dir_detour);
-				get_profile_dir_hook.target = get_profile_dir.as<void*>();
-				//get_profile_dir_hook.create();
-				get_profile_dir_hook.enable();
-			}
-			get_profile_dir_offset = get_profile_dir.add(offset_offset).as<uint32_t&>();
+				if (!forced_profile_dir.empty())
+				{
+					get_profile_dir_hook.detour = GAME_STRING_FN(get_profile_dir_detour);
+					get_profile_dir_hook.target = get_profile_dir.as<void*>();
+					//get_profile_dir_hook.create();
+					get_profile_dir_hook.enable();
+				}
+				get_profile_dir_offset = get_profile_dir.add(g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/get_profile_dir_offset_insn.json"), game_version)).as<uint32_t&>();
 #if LOGGING
-			conout << "get_profile_dir_offset = " << get_profile_dir_offset << std::endl;
+				conout << "get_profile_dir_offset = " << get_profile_dir_offset << std::endl;
 #endif
-		}
-		else
-		{
-			conout << get_core_string("sigfailfpd") << std::endl;
+			}
+			else
+			{
+				conout << get_core_string("sigfailfpd") << std::endl;
+			}
 		}
 	}
 #endif
@@ -4140,13 +4088,9 @@ static SOUP_FORCEINLINE void create_all_hooks()
 			{
 				check_string_substitutions_hook.detour = reinterpret_cast<void*>(&static_check_string_substitutions_detour);
 			}
-			else if (game_version >= GV(35, 5, 0))
-			{
-				check_string_substitutions_hook.detour = reinterpret_cast<void*>(&check_string_substitutions_detour<GameString>);
-			}
 			else
 			{
-				check_string_substitutions_hook.detour = reinterpret_cast<void*>(&check_string_substitutions_detour<LegacyGameString>);
+				check_string_substitutions_hook.detour = GAME_STRING_FN(check_string_substitutions_detour);
 			}
 			check_string_substitutions_hook.target = check_string_substitutions;
 			check_string_substitutions_hook.code_cave = Module(nullptr).range.scan(CompactDetourHook::getCodeCavePattern()).as<void*>();
@@ -4206,14 +4150,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 					/* 3 */ 0x49, 0xBA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // movabs r10, (8 bytes)
 					0x41, 0xFF, 0xE2, // jmp r10
 				};
-				if (game_version >= GV(35, 5, 0))
-				{
-					*(void**)(detour_bytes + 5) = reinterpret_cast<void*>(&object_type_serialise_propery_text_detour<GameString>);
-				}
-				else
-				{
-					*(void**)(detour_bytes + 5) = reinterpret_cast<void*>(&object_type_serialise_propery_text_detour<LegacyGameString>);
-				}
+				*(void**)(detour_bytes + 5) = GAME_STRING_FN(object_type_serialise_propery_text_detour);
 				detour = memGuard::alloc(sizeof(detour_bytes), memGuard::ACC_RWX);
 				memcpy(detour, detour_bytes, sizeof(detour_bytes));
 			}
@@ -4224,14 +4161,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 			object_type_serialise_propery_text_call = can_resolve_names ? Module(nullptr).range.scan(sig_inst) : nullptr;
 			call_offset = sig_inst.bytes.size() - 1;
 			ObjectType_property_text_offset = g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/ObjectType_property_text.json"), game_version);
-			if (game_version >= GV(19, 0, 0))
-			{
-				detour = reinterpret_cast<void*>(&object_type_serialise_propery_text_field_detour<LegacyGameString>);
-			}
-			else
-			{
-				detour = reinterpret_cast<void*>(&object_type_serialise_propery_text_field_detour<LegacyGameStringU18>);
-			}
+			detour = GAME_STRING_FN(object_type_serialise_propery_text_field_detour);
 		}
 #if LOGGING
 		conout << "object_type_serialise_propery_text_call = " << object_type_serialise_propery_text_call.as<void*>() << std::endl;
@@ -4302,18 +4232,7 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #endif
 		SOUP_IF_LIKELY (should_setup_optional_conditional_feature(irc_send_raw))
 		{
-			if (game_version >= GV(35, 5, 0))
-			{
-				irc_send_raw_hook.detour = reinterpret_cast<void*>(&irc_send_raw_detour<GameString>);
-			}
-			else if (game_version >= GV(19, 0, 0))
-			{
-				irc_send_raw_hook.detour = reinterpret_cast<void*>(&irc_send_raw_detour<LegacyGameString>);
-			}
-			else
-			{
-				irc_send_raw_hook.detour = reinterpret_cast<void*>(&irc_send_raw_detour<LegacyGameStringU18>);
-			}
+			irc_send_raw_hook.detour = GAME_STRING_FN(irc_send_raw_detour);
 			irc_send_raw_hook.target = irc_send_raw;
 			irc_send_raw_hook.create();
 			irc_send_raw_hook.enable();
