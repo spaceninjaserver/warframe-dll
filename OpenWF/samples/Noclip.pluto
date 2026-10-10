@@ -1,7 +1,13 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
 local avatar
+local pre_u33 <const> = compareversions(owf_get_build_version(), "2023.04.25.23.40") < 0
+local applied
+local motion <const> = pre_u33 ? "/Lotus/Powersuits/Fairy/FlightMotionController" : "/Lotus/Types/Game/LotusGroundFlightMotionController"
 local function disable()
 	if not IsNull(avatar) then
+		if pre_u33 and (mc := avatar:MotionControl()) instanceof LotusSpaceFlightMotionController then
+			mc:EnableFlight(false) -- older builds: before Razorwing's controller is removed
+		end
 		avatar:SetCustomAnimController(nil)
 		avatar:SetCustomMotionController(nil)
 		if (mc := avatar:MotionControl()) instanceof LotusSpaceFlightMotionController then
@@ -15,15 +21,20 @@ end
 repeat
 	if avatar ~= gRegion:GetLocalPlayerAvatar() then
 		disable()
-		local loader = UISys.ScriptResLoader_Create({ "/Lotus/Powersuits/Fairy/FairyFlightAnimController", "/Lotus/Types/Game/LotusGroundFlightMotionController", "/Lotus/Types/Player/SpaceBattle/SpaceMoveCameraController" })
+		local loader = UISys.ScriptResLoader_Create({ "/Lotus/Powersuits/Fairy/FairyFlightAnimController", motion, "/Lotus/Types/Player/SpaceBattle/SpaceMoveCameraController" })
 		repeat yield() until loader:IsDone()
 		avatar = gRegion:GetLocalPlayerAvatar()
+		applied = false
 	end
-	if not IsNull(avatar) then
+	if not IsNull(avatar) and not (pre_u33 and applied) then
 		avatar:SetCustomAnimController(Type("/Lotus/Powersuits/Fairy/FairyFlightAnimController"))
-		avatar:SetCustomMotionController(Type("/Lotus/Types/Game/LotusGroundFlightMotionController"))
+		avatar:SetCustomMotionController(Type(motion))
 		avatar:SetCustomCameraController(Type("/Lotus/Types/Player/SpaceBattle/SpaceMoveCameraController"))
+		if pre_u33 and (mc := avatar:MotionControl()) instanceof LotusSpaceFlightMotionController then
+			mc:EnableFlight(true) -- older builds don't start flying on their own
+		end
 		avatar:SetCollisionEnabled(false)
+		applied = true
 	end
 until not pcall(yield)
 disable()

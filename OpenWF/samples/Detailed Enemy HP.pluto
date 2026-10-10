@@ -1,8 +1,12 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
-local Health = Localize("/Lotus/Language/Labels/HUD_COLOR_HEALTH")
-local Shield = Localize("/Lotus/Language/Labels/HUD_COLOR_SHIELD")
-local Armor = Localize("/Lotus/Language/Labels/HUD_COLOR_ARMOR")
-local Overguard = Localize("/Lotus/Language/Labels/HUD_COLOR_PROTECTED_HEALTH")
+local function label(key, fallback)
+	local s = Localize(key)
+	return s == key ? fallback : s
+end
+local Health = label("/Lotus/Language/Labels/HUD_COLOR_HEALTH", "Health")
+local Shield = label("/Lotus/Language/Labels/HUD_COLOR_SHIELD", "Shield")
+local Armor = label("/Lotus/Language/Labels/HUD_COLOR_ARMOR", "Armor")
+local Overguard = compareversions(owf_get_build_version(), "2022.04.29.12.53") >= 0 and label("/Lotus/Language/Labels/HUD_COLOR_PROTECTED_HEALTH", "Overguard")
 repeat
 	for gRegion:FindAll(Type("/Lotus/Types/Game/LotusNpcAvatar")) as ent do
 		local dc = ent:DamageControl()
@@ -20,7 +24,7 @@ repeat
 			.."\r\n"..Health..": "..string.formatint(ent:GetHealth()).." / "..string.formatint(ent:GetMaxHealth())
 			.."\r\n"..Shield..": "..string.formatint(dc:GetShield()).." / "..string.formatint(dc:GetMaxShield())
 			.."\r\n"..Armor..": "..string.formatint(dc:GetArmourRating())
-			.."\r\n"..Overguard..": "..string.formatint(dc:GetOverguardAmount())
+			..(Overguard ? "\r\n"..Overguard..": "..string.formatint(dc:GetOverguardAmount()) : "")
 		)
 	end
 until yield()

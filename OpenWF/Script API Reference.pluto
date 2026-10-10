@@ -127,6 +127,7 @@ class BaseAvatar extends Entity
 	function DamageControl() end
 	function InventoryControl() end
 	function InputControl() end
+	function GetInputFilter() end
 	function GiveItem(type, b) end
 	function MotionControl() end
 	function GetView() end
@@ -694,6 +695,7 @@ function mem_read_i16(addr) end
 function mem_read_i32(addr) end
 function mem_read_i64(addr) end
 function mem_read_f32(addr) end
+function mem_write_i8(addr, val) end
 function mem_write_f32(addr, val) end
 function chat_subscribe_prefix(prefix, block) end
 function chat_unsubscribe_prefix(prefix) end
@@ -810,6 +812,7 @@ gGameRules
 gStarChart
 
 gFlashMgr
+	function GetTopMovieWithTextInput() end
 	function ExecuteToolMenuCommand(resource) end
 	function GotoMovie(resource) end
 

@@ -46,7 +46,7 @@ commands["kaithe"] = function()
 end
 commands["simulacrum"] = function()
 	local args = Engine.OpenLevelArgs()
-	args:SetLevel("/Lotus/Levels/Tenno/SimulacrumEnemySpawnerC.level")
+	args:SetLevel(compareversions(owf_get_build_version(), "2020.03.24.20.24") >= 0 ? "/Lotus/Levels/Tenno/SimulacrumEnemySpawnerC.level" : "/Lotus/Levels/Tenno/SimulacrumEnemySpawner.level")
 	args:SetGameRules("/Lotus/Types/GameRules/LotusDangerRoomGameRules")
 	Engine.OpenLevel(args)
 end
