@@ -1323,9 +1323,6 @@ void set_active_input_filter(std::string filter)
 	active_input_filter = std::move(filter);
 	std::lock_guard lock(g_client_tunables_mtx);
 	active_input_filter_allows_hotkeys = !g_client_tunables.isStringInArray(joaat::compileTimeHash("nhkif"), joaat::hash(active_input_filter));
-#if LOGGING
-	conout << "active_input_filter = " << active_input_filter << (active_input_filter_allows_hotkeys ? " (hotkeys on)" : " (hotkeys off)") << std::endl;
-#endif
 }
 
 static DetourHook write_to_log_file_hook;
