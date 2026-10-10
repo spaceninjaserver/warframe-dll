@@ -2975,12 +2975,6 @@ static soup::Pattern hash_to_pattern(uint32_t hash1, uint32_t hash2)
 	return Pattern(data, sizeof(data));
 }
 
-[[nodiscard]] static std::pair<uintptr_t, uintptr_t> module_bounds() noexcept
-{
-	const auto range = Module(nullptr).range;
-	return { range.base.as<uintptr_t>(), range.base.as<uintptr_t>() + range.size };
-}
-
 static Pointer find_method_entry(const char* name, const char* prev = nullptr)
 {
 	if (!swig_names_are_strings)
@@ -2988,8 +2982,6 @@ static Pointer find_method_entry(const char* name, const char* prev = nullptr)
 		return Module(nullptr).range.scan(hash_to_pattern(wf_hash(name)));
 	}
 	const auto range = Module(nullptr).range;
-	const auto [lo, hi] = module_bounds();
-	const auto in_module = [=](uintptr_t p) { return p >= lo && p < hi; };
 	const std::string str = std::string(1, '\0') + name + '\0';
 	const std::string str_mask(str.size(), 'x');
 	Pointer strs[8];
@@ -3000,7 +2992,7 @@ static Pointer find_method_entry(const char* name, const char* prev = nullptr)
 		for (size_t j = 0, m = range.scanWithMultipleResults(Pattern(reinterpret_cast<const char*>(&s), "xxxxxxxx"), refs); j != m; ++j)
 		{
 			const auto q = refs[j].as<const uintptr_t*>();
-			if (refs[j].as<uintptr_t>() % 8 == 0 && in_module(q[1]) && (!prev || (in_module(q[-2]) && strcmp(reinterpret_cast<const char*>(q[-2]), prev) == 0)))
+			if (refs[j].as<uintptr_t>() % 8 == 0 && range.contains(q[1]) && (!prev || (range.contains(q[-2]) && strcmp(reinterpret_cast<const char*>(q[-2]), prev) == 0)))
 			{
 				return refs[j];
 			}
@@ -5202,11 +5194,11 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 		if (nres == 0 && lua51) // before 2019 the module init differs
 		{
-			const auto [begin, end] = module_bounds();
-			const auto is_str = [=](uintptr_t p) { return p >= begin && p < end; };
-			for (auto q = reinterpret_cast<SwigTypeField*>(begin); reinterpret_cast<uintptr_t>(q + 1) + 0x30 < end; q = reinterpret_cast<SwigTypeField*>(reinterpret_cast<uintptr_t>(q) + 8))
+			const auto range = Module(nullptr).range;
+			const auto end = range.end().as<uintptr_t>();
+			for (auto q = range.base.as<SwigTypeField*>(); reinterpret_cast<uintptr_t>(q + 1) + 0x30 < end; q = reinterpret_cast<SwigTypeField*>(reinterpret_cast<uintptr_t>(q) + 8))
 			{
-				if (is_str(reinterpret_cast<uintptr_t>(q->field_name)) && memcmp(q->field_name, "_p_", 3) == 0 && is_str(reinterpret_cast<uintptr_t>(q->type_name)) && is_str(reinterpret_cast<uintptr_t>(q->type_desc())))
+				if (range.contains(reinterpret_cast<uintptr_t>(q->field_name)) && memcmp(q->field_name, "_p_", 3) == 0 && range.contains(reinterpret_cast<uintptr_t>(q->type_name)) && range.contains(q->type_desc()))
 				{
 					const size_t len = strlen(q->type_name);
 					if (len > 2 && q->type_name[len - 1] == '*')
@@ -5267,9 +5259,9 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 		if (swig_enums1.empty() && lua51) // before 2018.06 the install calls differ
 		{
-			const auto [begin, end] = module_bounds();
-			const auto is_rec = [=](uintptr_t r) { const auto e = reinterpret_cast<const SwigEnum*>(r); return *reinterpret_cast<const uint64_t*>(r) == 1 && reinterpret_cast<uintptr_t>(e->name) >= begin && reinterpret_cast<uintptr_t>(e->name) < end && e->name[0] >= 'A' && e->name[0] <= 'Z'; };
-			for (uintptr_t r = begin + sizeof(SwigEnum); r + sizeof(SwigEnum) * 2 < end; r += 8)
+			const auto range = Module(nullptr).range;
+			const auto is_rec = [&](uintptr_t r) { const auto e = reinterpret_cast<const SwigEnum*>(r); return *reinterpret_cast<const uint64_t*>(r) == 1 && range.contains(reinterpret_cast<uintptr_t>(e->name)) && e->name[0] >= 'A' && e->name[0] <= 'Z'; };
+			for (uintptr_t r = range.base.as<uintptr_t>() + sizeof(SwigEnum); r + sizeof(SwigEnum) * 2 < range.end().as<uintptr_t>(); r += 8)
 			{
 				if (is_rec(r) && !is_rec(r - sizeof(SwigEnum)) && is_rec(r + sizeof(SwigEnum)))
 				{
