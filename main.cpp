@@ -1821,20 +1821,24 @@ static int lua_OpenWebBrowser_detour(luau_State* L)
 #endif
 	if (strstr(L->intop[0].getString(), "warframe.com") != nullptr)
 	{
+		std::string new_url;
+		if (strstr(L->intop[0].getString(), "signup")) // Sign Up button opens WebUI
+		{
+			new_url = "http://" + server_host + (http_port == 80 ? "" : ":" + std::to_string(http_port)) + "/webui/";
+		}
 		// Purchases have a sku; other usages instead have redirect, e.g.:
 		// ...&redirect=/patch-notes/...
 		// ...&redirect=/updates/...
-		if (const auto redirect = strstr(L->intop[0].getString(), "&redirect="))
+		else if (const auto redirect = strstr(L->intop[0].getString(), "&redirect="))
 		{
-			const auto path = redirect + strlen("&redirect=");
-			if (luau_pushstring)
-			{
-				std::string new_url = std::string("https://www.warframe.com") + path;
-				string::replaceAll(new_url, "/updates/", "/patch-notes/"); // The old /updates/ links now 404 instead of just redirecting...
-				L->outtop = &L->intop[0];
-				luau_pushstring(L, new_url.c_str());
-				return lua_OpenWebBrowser_og(L);
-			}
+			new_url = std::string("https://www.warframe.com") + (redirect + strlen("&redirect="));
+			string::replaceAll(new_url, "/updates/", "/patch-notes/"); // The old /updates/ links now 404 instead of just redirecting...
+		}
+		if (!new_url.empty() && luau_pushstring)
+		{
+			L->outtop = &L->intop[0];
+			luau_pushstring(L, new_url.c_str());
+			return lua_OpenWebBrowser_og(L);
 		}
 		return 0;
 	}
