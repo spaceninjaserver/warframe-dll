@@ -56,6 +56,15 @@ void load_label_replacements()
 
 const char* do_label_replacements(const char* str_data, size_t str_size, const char* loctag_data, size_t loctag_size, size_t& out_size)
 {
+	for (const auto& [suffix, value] : { std::pair<std::string_view, std::string_view>{ "/Mobile/Cross_Save_Account", "about.openwf.io" }, { "/Mobile/Cross_Save_Link", "https://about.openwf.io/" } })
+	{
+		if (std::string_view(loctag_data, loctag_size).ends_with(suffix))
+		{
+			out_size = value.size();
+			return value.data();
+		}
+	}
+
 	const char* ret = nullptr;
 	std::lock_guard lock(label_replacements_mtx);
 	if (L)
