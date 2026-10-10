@@ -1,4 +1,5 @@
 local { cat, http, json, scheduler, url, vector3 } = require "*"
+local pre_u33 <const> = compareversions(owf_get_build_version(), "2023.04.25.23.40") < 0
 
 Vector = vector3
 Vector3 = vector3 -- compatibility
@@ -587,6 +588,10 @@ class Entity extends BaseEntity
 
 	function GetPosition()
 		self:pushToIvkr()
+		if pre_u33 then
+			ivkr_call(ivkr_find_method("Entity", "GetPosition"), 1)
+			return ivkr_pop_vector()
+		end
 		return new Vector(entity_get_pos(ivkr_pop_object()))
 	end
 
@@ -1017,6 +1022,9 @@ class LotusAvatar extends Avatar
 	end
 
 	function SetDynamicUIName(b)
+		if pre_u33 and not ivkr_find_method("LotusAvatar", "SetDynamicUIName") then
+			return
+		end
 		self:pushToIvkr()
 		ivkr_push_bool(b)
 		ivkr_call(ivkr_find_method("LotusAvatar", "SetDynamicUIName"), 2)
@@ -1081,6 +1089,9 @@ class DamageControllerBase extends Object
 	end
 
 	function GetOverguardAmount()
+		if pre_u33 and not ivkr_find_method("DamageControllerBase", "GetOverguardAmount") then
+			return 0
+		end
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("DamageControllerBase", "GetOverguardAmount"), 1)
 		return math.tointeger(ivkr_pop_number())
@@ -1093,6 +1104,9 @@ class DamageControllerBase extends Object
 	end
 
 	function GetOverguardMax()
+		if pre_u33 and not ivkr_find_method("DamageControllerBase", "GetOverguardMax") then
+			return 0
+		end
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("DamageControllerBase", "GetOverguardMax"), 1)
 		return math.tointeger(ivkr_pop_number())
@@ -1496,6 +1510,7 @@ class GameRules extends Object
 	end
 
 	function setSlomoltiplier(f)
+		assert(not pre_u33, "GameRules:setSlomoltiplier does not work in this version")
 		self:pushToIvkr()
 		mem_write_f32(ivkr_pop_object() + 0x54, f)
 	end
@@ -2207,6 +2222,9 @@ class CameraControllerBase extends Object
 	end
 
 	function implSetVector(funcName, vec)
+		if pre_u33 and not ivkr_find_method("CameraControllerBase", funcName) then
+			return
+		end
 		self:pushToIvkr()
 		ivkr_push_vector(vec)
 		ivkr_call(ivkr_find_method("CameraControllerBase", funcName), 2)
@@ -3185,6 +3203,11 @@ setmetatable(_G, {
 })
 
 gFlashMgr = {
+	function GetTopMovieWithTextInput()
+		ivkr_push_object(get_flashmgr())
+		ivkr_call(ivkr_find_method("FlashMgr", "GetTopMovieWithTextInput"), 1)
+		return ivkr_pop_new(FlashInstance)
+	end,
 	function ExecuteToolMenuCommand(resource)
 		ivkr_push_object(get_flashmgr())
 		resource:pushToIvkr()
@@ -3595,6 +3618,9 @@ mem_rip = function(addr)
 end
 
 ivkr_typename = function(idx)
+	if pre_u33 then
+		return ivkr_swig_typename(idx)
+	end
 	ivkr_push_value(idx)
 	ivkr_call(ivkr_find_global("GetTypeName"), 1)
 	return ivkr_pop_string()
@@ -3686,10 +3712,21 @@ ivkr_find_builtin = function(name)
 	return ivkr_pop_c_function()
 end
 
+local lua51 <const> = compareversions(owf_get_build_version(), "2023.02.13.10.22") < 0
+local function ivkr_require(name)
+	if lua51 then
+		ivkr_push_global("require")
+		ivkr_push_string(name)
+		ivkr_call2(1, 1)
+	else
+		ivkr_push_string(name)
+		ivkr_call(ivkr_find_builtin("require"), 1)
+	end
+end
+
 package.preload["EE.Interface.Utilities"] = || -> {
 	ShowMessage = function(str)
-		ivkr_push_string("EE.Interface.Utilities")
-		ivkr_call(ivkr_find_builtin("require"), 1)
+		ivkr_require("EE.Interface.Utilities")
 		do
 			ivkr_push_string("ShowMessage")
 			ivkr_gettable(-2)
@@ -3703,8 +3740,7 @@ package.preload["EE.Interface.Utilities"] = || -> {
 
 package.preload["Lotus.Interface.LotusNetworkUtilities"] = || -> {
 	Host_LoadMission = function(node, missionInfo)
-		ivkr_push_string("Lotus.Interface.LotusNetworkUtilities")
-		ivkr_call(ivkr_find_builtin("require"), 1)
+		ivkr_require("Lotus.Interface.LotusNetworkUtilities")
 		do
 			ivkr_push_string("Host_LoadMission")
 			ivkr_gettable(-2)
@@ -3734,8 +3770,7 @@ package.preload["Lotus.Interface.LotusUtilities"] = || -> {
 
 package.preload["Lotus.Scripts.Libs.ObjectiveText"] = || -> {
 	SetPrimaryObjText = function(text)
-		ivkr_push_string("Lotus.Scripts.Libs.ObjectiveText")
-		ivkr_call(ivkr_find_builtin("require"), 1)
+		ivkr_require("Lotus.Scripts.Libs.ObjectiveText")
 		do
 			ivkr_push_string("SetPrimaryObjText")
 			ivkr_gettable(-2)
@@ -3746,8 +3781,7 @@ package.preload["Lotus.Scripts.Libs.ObjectiveText"] = || -> {
 		ivkr_pop(1)
 	end,
 	ClearPrimaryObjText = function()
-		ivkr_push_string("Lotus.Scripts.Libs.ObjectiveText")
-		ivkr_call(ivkr_find_builtin("require"), 1)
+		ivkr_require("Lotus.Scripts.Libs.ObjectiveText")
 		do
 			ivkr_push_string("ClearPrimaryObjText")
 			ivkr_gettable(-2)
@@ -3759,8 +3793,7 @@ package.preload["Lotus.Scripts.Libs.ObjectiveText"] = || -> {
 
 package.preload["Lotus.Scripts.Libs.DuviriActivityLib"] = || -> {
 	ModifyEncounterLimit = function(type, delta)
-		ivkr_push_string("Lotus.Scripts.Libs.DuviriActivityLib")
-		ivkr_call(ivkr_find_builtin("require"), 1)
+		ivkr_require("Lotus.Scripts.Libs.DuviriActivityLib")
 		do
 			ivkr_push_string("ModifyEncounterLimit")
 			ivkr_gettable(-2)
@@ -3773,8 +3806,7 @@ package.preload["Lotus.Scripts.Libs.DuviriActivityLib"] = || -> {
 	end,
 	IsEncounterLimitReached = function(type)
 		local res
-		ivkr_push_string("Lotus.Scripts.Libs.DuviriActivityLib")
-		ivkr_call(ivkr_find_builtin("require"), 1)
+		ivkr_require("Lotus.Scripts.Libs.DuviriActivityLib")
 		do
 			ivkr_push_string("IsEncounterLimitReached")
 			ivkr_gettable(-2)

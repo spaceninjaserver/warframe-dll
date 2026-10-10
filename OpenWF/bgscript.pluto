@@ -448,7 +448,7 @@ while pcall(yield) do
 	if poll_input_filter then
 		local avatar = gRegion:GetLocalPlayerAvatar()
 		local filter = avatar and avatar:GetInputFilter()
-		local name = filter and filter:GetFullName() or ""
+		local name = gFlashMgr:GetTopMovieWithTextInput() and "/EE/Types/Input/MenuInputFilter" or (filter and filter:GetFullName() or "")
 		if name ~= last_input_filter then
 			last_input_filter = name
 			owf_set_active_input_filter(name)

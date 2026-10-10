@@ -68,6 +68,12 @@ struct luau_TValue
 		}
 		return ***(Object****)(value.as_uintptr + (!lua51 ? 0x18 : game_version >= GV(26, 0, 0) ? 0x28 : game_version >= GV(25, 7, 0) ? 0x30 : 0x38));
 	}
+
+	[[nodiscard]] const char* getSwigTypeName() const noexcept 	// SWIG userdata starts with its swig_type_info
+	{
+		const auto block = value.as_uintptr + (!lua51 ? 0x10 : game_version >= GV(25, 7, 0) ? 0x20 : 0x28);
+		return *reinterpret_cast<const char* const*>((*reinterpret_cast<const uintptr_t*>(block) & ~uintptr_t(7)) + 8);
+	}
 };
 #if SOUP_BITS == 64
 static_assert(sizeof(luau_TValue) == 0x10);

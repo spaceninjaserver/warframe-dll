@@ -1135,6 +1135,14 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
+		const auto value = luau_L->getValue(luaL_checkinteger(L, 1));
+		lua_pushstring(L, value->isType(LUAU_USERDATA) ? value->getSwigTypeName() : "");
+		return 1;
+	});
+	OWF_SET_GLOBAL(L, "ivkr_swig_typename"); // GetTypeName only exists from 2024.03.24.20.00
+
+	lua_pushcfunction(L, [](lua_State* L) -> int
+	{
 		const auto tval = luau_L->getValue(luaL_checkinteger(L, 1));
 		lua_pushboolean(L, tval->isType(LUAU_LIGHTUSERDATA) || tval->isType(LUAU_USERDATA));
 		return 1;

@@ -127,6 +127,7 @@ class BaseAvatar extends Entity
 	function DamageControl() end
 	function InventoryControl() end
 	function InputControl() end
+	function GetInputFilter() end
 	function GiveItem(type, b) end
 	function MotionControl() end
 	function GetView() end
@@ -811,6 +812,7 @@ gGameRules
 gStarChart
 
 gFlashMgr
+	function GetTopMovieWithTextInput() end
 	function ExecuteToolMenuCommand(resource) end
 	function GotoMovie(resource) end
 

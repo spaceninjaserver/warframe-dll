@@ -1,4 +1,8 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
+if compareversions(owf_get_build_version(), "2023.04.25.23.40") < 0 then
+	chat_system_reply("The Stalker is not playable in this version")
+	return
+end
 local name = "/Lotus/Powersuits/Stalker/Stalker"
 
 local loader = UISys.ScriptResLoader_Create({ name })
