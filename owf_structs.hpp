@@ -176,6 +176,8 @@ struct LegacyGameStringU18
 	}*/
 };
 
+#define GAME_STRING_FN(fn) (game_version >= GV(35, 5, 0) ? reinterpret_cast<void*>(&fn<GameString>) : game_version >= GV(19, 0, 0) ? reinterpret_cast<void*>(&fn<LegacyGameString>) : reinterpret_cast<void*>(&fn<LegacyGameStringU18>))
+
 // Objects
 
 struct ObjectTypeName
