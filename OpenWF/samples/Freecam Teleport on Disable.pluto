@@ -1,17 +1,17 @@
-local was_in_freecam = false
+if compareversions(owf_get_build_version(), "2017.03.26.04.21") < 0 then
+	chat_system_reply("Freecam Teleport on Disable is not available in this version. Use U20 or later.")
+	return
+end
 local last_pos
 repeat
-	if avatar := gRegion:GetLocalPlayerAvatar() then
-		if avatar:isFollowedByCamera() then
-			if was_in_freecam then
-				was_in_freecam = false
+	if player := gRegion:GetLocalPlayer() then
+		if player:IsFreeCameraActive() then
+			last_pos = gRegion:GetGameCamera():GetPosition()
+		elseif last_pos then
+			if avatar := gRegion:GetLocalPlayerAvatar() then
 				avatar:SetPosition(last_pos)
 			end
-		else
-			was_in_freecam = gRegion:GetLocalPlayer():isControllingCamera()
-			if was_in_freecam then
-				last_pos = gRegion:GetGameCamera():GetPosition()
-			end
+			last_pos = nil
 		end
 	end
 until yield()

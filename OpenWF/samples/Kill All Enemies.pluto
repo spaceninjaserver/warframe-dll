@@ -1,4 +1,8 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
+if compareversions(owf_get_build_version(), "2015.05.12.16.24") < 0 then
+	chat_system_reply("Kill All Enemies is not available in this version. Use U16.5 or later.")
+	return
+end
 repeat
 	local player = gRegion:GetLocalPlayerAvatar()
 	for gRegion:GetAvatars() as avatar do

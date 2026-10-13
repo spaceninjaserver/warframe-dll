@@ -1,4 +1,8 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
+if compareversions(owf_get_build_version(), "2014.10.24.08.24") < 0 then
+	chat_system_reply("Godmode is not available in this version. Use U15 or later.")
+	return
+end
 repeat
 	if avatar := gRegion:GetLocalPlayerAvatar() then
 		if avatar instanceof LotusVehicleAvatar then

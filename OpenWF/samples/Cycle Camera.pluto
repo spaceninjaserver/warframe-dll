@@ -1,4 +1,8 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
+if compareversions(owf_get_build_version(), "2017.06.29.02.13") < 0 then
+	chat_system_reply("Cycle Camera is not available in this version. Use U21 or later.")
+	return
+end
 if not gRegion:GetLocalPlayer():IsFreeCameraActive() then
 	-- Normal -> Freecam
 	gRegion:GetLocalPlayer():ToggleFreeCamera()

@@ -1,4 +1,8 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
+if compareversions(owf_get_build_version(), "2019.08.29.20.01") < 0 then
+	chat_system_reply("Wallhack is not available in this version. Use U25.7 or later.")
+	return
+end
 repeat
 	local npcAvatars = gRegion:FindAll(gLotusNpcAvatarType)
 	for npcAvatars as avatar do

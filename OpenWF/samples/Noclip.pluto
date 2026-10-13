@@ -1,4 +1,8 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
+if compareversions(owf_get_build_version(), "2016.09.26.14.29") < 0 then
+	chat_system_reply("Noclip is not available in this version. Use U18.21 or later.")
+	return
+end
 local avatar
 local pre_u33 <const> = compareversions(owf_get_build_version(), "2023.04.25.23.40") < 0
 local applied

@@ -1,4 +1,8 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
+if compareversions(owf_get_build_version(), "2017.03.26.04.21") < 0 then
+	chat_system_reply("Freecam Up Down is not available in this version. Use U20 or later.")
+	return
+end
 $define VK_CONTROL = 0x11
 $define VK_SPACE = 0x20
 

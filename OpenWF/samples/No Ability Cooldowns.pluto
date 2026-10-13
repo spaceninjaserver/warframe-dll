@@ -1,4 +1,8 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
+if compareversions(owf_get_build_version(), "2015.12.05.18.07") < 0 then
+	chat_system_reply("No Ability Cooldowns is not available in this version. Use U18 or later.")
+	return
+end
 repeat
 	if suit := gRegion:GetLocalPlayerAvatar():InventoryControl():GetActivePowerSuit() then
 		for i = 0, 3 do

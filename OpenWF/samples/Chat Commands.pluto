@@ -4,8 +4,17 @@ local function streaming_request(names)
 	repeat yield() until loader:IsDone()
 end
 
+local function available(build, label)
+	if compareversions(owf_get_build_version(), build) < 0 then
+		chat_system_reply(label)
+		return false
+	end
+	return true
+end
+
 local commands = {}
 commands["god"] = function()
+	if not available("2014.10.24.08.24", "This command is not available in this version. Use U15 or later.") then return end
 	local avatar = gRegion:GetLocalPlayerAvatar()
 	if avatar instanceof LotusVehicleAvatar then
 		avatar = avatar:GetRider()
@@ -26,6 +35,7 @@ commands["suicide"] = function()
 	end
 end
 commands["killall"] = function()
+	if not available("2015.05.12.16.24", "This command is not available in this version. Use U16.5 or later.") then return end
 	local player = gRegion:GetLocalPlayerAvatar()
 	for gRegion:GetAvatars() as avatar do
 		if not avatar:IsAvatarFriendly(player) then
@@ -34,17 +44,21 @@ commands["killall"] = function()
 	end
 end
 commands["kdrive"] = function()
+	if not available("2018.11.08.14.45", "This command is not available in this version. Use U24 or later.") then return end
 	streaming_request({ "/Lotus/Types/Enemies/Corpus/Venus/Hoverboard/CrpHoverboardUnmannedAvatar" })
 	gRegion:CreateEntity(Type("/Lotus/Types/Enemies/Corpus/Venus/Hoverboard/CrpHoverboardUnmannedAvatar"))
 end
 commands["dargyn"] = function()
+	if not available("2017.12.08.15.29", "This command is not available in this version. Use U22.6 or later.") then return end
 	streaming_request({ "/Lotus/Types/Enemies/Grineer/Eidolon/GrineerSkiff/GrineerSkiffUnmannedAvatar" })
 	gRegion:CreateEntity(Type("/Lotus/Types/Enemies/Grineer/Eidolon/GrineerSkiff/GrineerSkiffUnmannedAvatar"))
 end
 commands["kaithe"] = function()
+	if not available("2023.04.25.23.40", "This command is not available in this version. Use U33 or later.") then return end
 	gRegion:GetNpcMgr():CreateAgentAtPosition(Type("/Lotus/Types/NeutralCreatures/ErsatzHorse/ErsatzHorseUnmannedGearSummonItemAgent"), gRegion:GetLocalPlayerAvatar():GetPosition(), ZERO_ROTATION)
 end
 commands["simulacrum"] = function()
+	if not available("2015.03.21.08.17", "The Simulacrum is not available in this version. Use U16 or later.") then return end
 	local args = Engine.OpenLevelArgs()
 	args:SetLevel(compareversions(owf_get_build_version(), "2020.03.24.20.24") >= 0 ? "/Lotus/Levels/Tenno/SimulacrumEnemySpawnerC.level" : "/Lotus/Levels/Tenno/SimulacrumEnemySpawner.level")
 	args:SetGameRules("/Lotus/Types/GameRules/LotusDangerRoomGameRules")
@@ -58,6 +72,7 @@ commands["level"] = function(text)
 	Engine.OpenLevel(args)
 end
 commands["captura"] = function(text)
+	if not available("2017.03.26.04.21", "Captura is not available in this version. Use U20 or later.") then return end
 	local level = text:split(" ")[2]
 	chat_system_reply("Opening Captura in "..level)
 	local args = Engine.OpenLevelArgs()
@@ -66,6 +81,7 @@ commands["captura"] = function(text)
 	Engine.OpenLevel(args)
 end
 commands["energy"] = function()
+	if not available("2015.10.15.12.24", "This command is not available in this version. Use U17 or later.") then return end
 	local avatar = gRegion:GetLocalPlayerAvatar()
 	if avatar instanceof LotusVehicleAvatar then
 		avatar = avatar:GetRider()
@@ -82,6 +98,7 @@ commands["scale"] = function(text)
 	end
 end
 commands["timescale"] = function(text)
+	if not available("2018.06.14.23.21", "This command is not available in this version. Use U23 or later.") then return end
 	local scale = tonumber(text:split(" ")[2])
 	if scale == 1 then
 		gGameRules:CancelSlomo()
@@ -118,6 +135,7 @@ commands["sync"] = function()
 end
 commands["resync"] = commands["sync"]
 commands["unstick"] = function()
+	if not available("2015.04.01.16.41", "This command is not available in this version. Use U16.2 or later.") then return end
 	gGameRules:UnstickLocalPlayer()
 end
 commands["quit"] = function()

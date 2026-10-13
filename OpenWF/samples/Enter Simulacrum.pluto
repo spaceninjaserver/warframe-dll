@@ -1,4 +1,8 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
+if compareversions(owf_get_build_version(), "2015.03.21.08.17") < 0 then
+	chat_system_reply("The Simulacrum is not available in this version. Use U16 or later.")
+	return
+end
 while not gPlayerProfileMgr:IsLoggedIn() do
 	yield()
 end

@@ -1,4 +1,7 @@
 -- Modifications to sample scripts will be lost the next time you start the game.
+if compareversions(owf_get_build_version(), "2019.08.29.20.01") < 0 then
+	chat_system_reply("First Person View may hide the UI in this version. Use U25.7 or later for full support.")
+end
 local in_air_toggle = owf_script_add_toggle("In Air")
 repeat
 	local cc = gRegion:GetLocalPlayer():CameraControl()
