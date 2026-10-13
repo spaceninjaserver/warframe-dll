@@ -3015,7 +3015,7 @@ static soup::Pattern hash_to_pattern(uint32_t hash1, uint32_t hash2)
 	return Pattern(data, sizeof(data));
 }
 
-static Pointer find_method_entry(const char* name, const char* prev = nullptr)
+Pointer find_method_entry(const char* name, const char* prev)
 {
 	if (!swig_names_are_strings)
 	{
@@ -3843,6 +3843,11 @@ static SOUP_FORCEINLINE void create_all_hooks()
 				SIG_INST("48 89 5C 24 08 57 48 83 EC 30 4D 8B C8 48 8B F9 85 D2 7E 22 8D 42 FF 48 63 D0 48 8D 1D ? ? ? ? 48 C1 E2 04 48 03 51 18 48 3B 51 10 48 0F 42 DA E9 ? ? ? ? 81 FA F0 D8 FF FF 7E 10 48 63 DA 48 C1 E3 04 48 03 59 10 E9 ? ? ? ? 41 B8 EE D8 FF FF 41 3B D0 74 74 81 FA EF D8 FF FF 74 4A 81 FA F0 D8 FF FF 74 35 48 8B 41 28 44 2B C2 48 8B 48 08 4C 8B 11 41 0F B6 42 0B 44 3B C0 7F 14 41 8D 40 FF 48 63 C8 49 8D 5A 28 48 C1 E1 04 48 03 D9 EB 3C 48 8D 1D ? ? ? ? EB 33 48 8B 59 20 48 81 C3 A0 00 00 00 EB 26 48 8B 41 28 48 8D 99 88 00 00 00 48 8B 48 08 48 8B 01 48 8B 48 18 48 89 0B C7 43 08 05 00 00 00 EB 04 48 8D 59 78 49 83 C8 FF 49 FF C0 43 80 3C 01 00 75 F6 49 8B D1 48 8B CF E8 ? ? ? ? 4C 8B 4F 10 4C 8D 44 24 20 49 83 E9 10 48 89 44 24 20 48 8B D3 C7 44 24 28 04 00 00 00"); // 2017.12.08.15.29 - 2018.05.17.16.28
 				lua_set_global = Module(nullptr).range.scan(sig_inst).as<void*>();
 			}
+			if (!lua_set_global)
+			{
+				SIG_INST("48 89 5C 24 08 57 48 83 EC 30 4D 8B C8 48 8B F9 85 D2 7E 22 8D 42 FF 48 8D 1D ? ? ? ? 48 63 D0 48 C1 E2 04 48 03 51 18 48 3B 51 10 48 0F 42 DA E9 ? ? ? ? 81 FA F0 D8 FF FF 7E 10 48 63 DA 48 C1 E3 04 48 03 59 10 E9 ? ? ? ? 41 B8 EE D8 FF FF 41 3B D0 74 74 81 FA EF D8 FF FF 74 4A 81 FA F0 D8 FF FF 74 35 48 8B 41 28 44 2B C2 48 8B 48 08 4C 8B 11 41 0F B6 42 0B 44 3B C0 7F 14 41 8D 40 FF 49 8D 5A 28 48 63 C8 48 C1 E1 04 48 03 D9 EB ? 48 8D 1D ? ? ? ? EB ? 48 8B 59 20 48 81 C3 A0 00 00 00 EB ? 48 8B 41 28 48 8D 99 88 00 00 00 48 8B 48 08 48 8B 01 48 8B 48 18 C7 43 08 05 00 00 00 48 89 0B EB ? 48 8D 59 78 49 83 C8 FF 49 FF C0 43 80 3C 01 00 75 F6 49 8B D1 48 8B CF E8 ? ? ? ? 4C 8B 4F 10 4C 8D 44 24 20 49 83 E9 10 48 8B D3 48 8B CF 48 89 44 24 20 C7 44 24 28 04 00 00 00 E8 ? ? ? ? 48 83 47 10 F0 48 8B 5C 24 40 48 83 C4 30 5F C3"); // 2014.07.21.18.38 - 2016.10.14.18.08
+				lua_set_global = Module(nullptr).range.scan(sig_inst).as<void*>();
+			}
 		}
 		else if (lua51)
 		{
@@ -3989,10 +3994,10 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #if !MINIMAL_HOOKS
 	if (have_scripting) // U32 Veilbreaker (2022.09.06.19.24) crashed in this detour before it was version-aware, untested
 	{
-		auto lua_FlashInstance_GetStringVariable_hash = swig_names_are_strings ? find_method_entry("GetVariable", "SetVariable") : Module(nullptr).range.scan(game_version >= GV(28, 3, 2) ? hash_to_pattern(wf_hash("GetStringVariable")) : hash_to_pattern(wf_hash("SetStringVariable"), wf_hash("SetVariable")));
-		if (lua_FlashInstance_GetStringVariable_hash && game_version < GV(28, 3, 2) && !swig_names_are_strings)
+		auto lua_FlashInstance_GetStringVariable_hash = swig_names_are_strings ? find_method_entry("SetVariable", "SetStringVariable") : Module(nullptr).range.scan(game_version >= GV(28, 3, 2) ? hash_to_pattern(wf_hash("GetStringVariable")) : hash_to_pattern(wf_hash("SetStringVariable"), wf_hash("SetVariable")));
+		if (lua_FlashInstance_GetStringVariable_hash && game_version < GV(28, 3, 2))
 		{
-			lua_FlashInstance_GetStringVariable_hash = lua_FlashInstance_GetStringVariable_hash.add(0x20);
+			lua_FlashInstance_GetStringVariable_hash = lua_FlashInstance_GetStringVariable_hash.add(swig_names_are_strings ? 0x10 : 0x20); // GetVariable from FlashInstance follows SetStringVariable, SetVariable, another class has SetVariable, GetVariable too
 		}
 #if LOGGING
 		conout << "lua_FlashInstance_GetStringVariable_hash = " << lua_FlashInstance_GetStringVariable_hash.as<void*>() << std::endl;
@@ -4858,14 +4863,29 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 				SIG_INST("40 53 48 83 EC 20 48 8B D9 48 85 D2 74 ? 48 8B 4A 10 48 89 74 24 30 48 89 7C 24 38 48 8D 7A 28 48 8B 01 FF 50 40"); // 2017.12.08.15.29 - 2018.05.17.16.28
 				luau_pushobject = Module(nullptr).range.scan(sig_inst).as<luau_pushobject_t>();
 			}
-			if (!luau_pushobject) // 2018.06 - 2019.05 inline it
+			if (!luau_pushobject) // 2016.11 - 2017.11 and 2018.06 - 2019.05 inline it
 			{
 				{
 					SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 41 56 41 57 48 83 EC 20 4C 8B 41 20");
 					lua51_newuserdata = Module(nullptr).range.scan(sig_inst).as<lua51_newuserdata_t>();
 				}
+				if (!lua51_newuserdata) // before 2018.06
+				{
+					SIG_INST("48 89 5C 24 08 57 48 83 EC 20 4C 8B 41 20 48 8B FA 48 8B D9 49 8B 40 70 49 39 40 78 72 05");
+					lua51_newuserdata = Module(nullptr).range.scan(sig_inst).as<lua51_newuserdata_t>();
+				}
+				{
+					SIG_INST("48 89 5C 24 08 57 48 83 EC 20 48 8B 7A 20 48 8B D9 48 85 FF 74 4D E8 ? ? ? ? 44 8B 47 40 83 CA FF 48 8B CB E8 ? ? ? ? BA FE FF FF FF"); // 2016.07.08.16.56 - 2018.05.17.16.28, the shorter signature below matches two functions there
+					lua51_set_class_metatable = Module(nullptr).range.scan(sig_inst).as<lua51_set_class_metatable_t>();
+				}
+				if (!lua51_set_class_metatable)
 				{
 					SIG_INST("48 89 5C 24 08 57 48 83 EC 20 48 8B 7A 20 48 8B D9");
+					lua51_set_class_metatable = Module(nullptr).range.scan(sig_inst).as<lua51_set_class_metatable_t>();
+				}
+				if (!lua51_set_class_metatable)
+				{
+					SIG_INST("48 89 5C 24 08 57 48 83 EC 20 48 8B 5A 20 48 8B F9 48 85 DB 74 59 48 8B 1B E8 ? ? ? ? 48 8B D3 48 8B CF E8 ? ? ? ? BA FE FF FF FF"); // 2014.07.21.18.38 - 2016.03.31.15.16
 					lua51_set_class_metatable = Module(nullptr).range.scan(sig_inst).as<lua51_set_class_metatable_t>();
 				}
 				if (lua51_newuserdata && lua51_set_class_metatable)
@@ -4995,7 +5015,12 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		}
 		if (!luauD_call)
 		{
-			SIG_INST("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 66 FF 41 60 48 8B D9 0F B7 41 60"); // 2017.12.08.15.29 - 2018.05.17.16.28
+			SIG_INST("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 66 FF 41 60 48 8B D9 0F B7 41 60"); // 2016.11.11.17.46 - 2018.05.17.16.28
+			luauD_call = Module(nullptr).range.scan(sig_inst).as<luauD_call_t>();
+		}
+		if (!luauD_call)
+		{
+			SIG_INST("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 66 FF 41 60 0F B7 41 60 48 8B D9 B9 C8 00 00 00"); // 2014.07.21.18.38 - 2016.10.14.18.08
 			luauD_call = Module(nullptr).range.scan(sig_inst).as<luauD_call_t>();
 		}
 		{
@@ -5005,7 +5030,13 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 		if (!luau_pushstring)
 		{
 			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B 49 20 49 8B F0 48 8B EA 48 8B F9"); // lua_pushlstring - before 2020.08.12.19.57 lua_pushstring isn't standalone
-			if ((lua51_pushlstring = Module(nullptr).range.scan(sig_inst).as<lua51_pushlstring_t>()))
+			lua51_pushlstring = Module(nullptr).range.scan(sig_inst).as<lua51_pushlstring_t>();
+			if (!lua51_pushlstring)
+			{
+				SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B 49 20 49 8B F0 48 8B EA 49 8B 41 70 48 8B F9 49 39 41 78 72 05"); // 2014.07.21.18.38 - 2016.10.14.18.08
+				lua51_pushlstring = Module(nullptr).range.scan(sig_inst).as<lua51_pushlstring_t>();
+			}
+			if (lua51_pushlstring)
 			{
 				luau_pushstring = [](luau_State* L, const char* s) -> const char*
 				{
@@ -5018,13 +5049,28 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B 49 20 41 8B F0 8B EA 48 8B F9");
 			luau_createtable = Module(nullptr).range.scan(sig_inst).as<luau_createtable_t>();
 		}
+		if (!luau_createtable)
+		{
+			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B 49 20 41 8B F0 8B EA 49 8B 41 70 48 8B F9 49 39 41 78 72 05"); // 2014.07.21.18.38 - 2016.10.14.18.08
+			luau_createtable = Module(nullptr).range.scan(sig_inst).as<luau_createtable_t>();
+		}
 		{
 			SIG_INST("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 4C 8B 49 20 48 8B F2 49 63 F8 48 8B D9 49 8B 41 70 49 39 41 78 72 05 E8 ? ? ? ?");
 			lua51_pushcclosure = Module(nullptr).range.scan(sig_inst).as<lua51_pushcclosure_t>();
 		}
 		if (!lua51_pushcclosure)
 		{
-			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B 49 20 48 8B EA 49 63 F8 48 8B D9"); // 2017.12.08.15.29 - 2018.05.17.16.28
+			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B 49 20 48 8B EA 49 63 F8 48 8B D9"); // 2016.11.11.17.46 - 2018.05.17.16.28
+			lua51_pushcclosure = Module(nullptr).range.scan(sig_inst).as<lua51_pushcclosure_t>();
+		}
+		if (!lua51_pushcclosure)
+		{
+			SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 49 63 D8 4C 8B 41 20 48 8B EA 49 8B 40 70 48 8B F9 49 39 40 78 72 05"); // 2015.11.19.16.03 - 2016.10.14.18.08
+			lua51_pushcclosure = Module(nullptr).range.scan(sig_inst).as<lua51_pushcclosure_t>();
+		}
+		if (!lua51_pushcclosure)
+		{
+			SIG_INST("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 4C 8B 49 20 49 63 F8 48 8B F2 49 8B 41 70 48 8B D9 49 39 41 78 72 05"); // 2014.07.21.18.38 - 2015.10.22.11.01
 			lua51_pushcclosure = Module(nullptr).range.scan(sig_inst).as<lua51_pushcclosure_t>();
 		}
 		{
@@ -5056,7 +5102,7 @@ static SOUP_FORCEINLINE void do_pointer_scans()
 			}
 			else
 			{
-				SIG_INST("48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 41 8B 78 08"); // 2017.12.08.15.29 - 2018.05.17.16.28
+				SIG_INST("48 89 5C 24 08 57 48 83 EC 20 49 8B F8 48 8B DA E8 ? ? ? ? 4C 63 5B 38 44 8D 48 01"); // 2014.07.21.18.38 - 2018.05.17.16.28
 				lua51_luaH_next = Module(nullptr).range.scan(sig_inst).as<lua51_luaH_next_t>();
 			}
 		}

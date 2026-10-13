@@ -260,7 +260,7 @@ local function check_for_updates()
 	end)
 end
 
-local ivkr_available <const> = compareversions(owf_get_build_version(), "2023.07.26.16.38") >= 0
+local ivkr_available <const> = compareversions(owf_get_build_version(), "2017.10.12.17.04") >= 0
 
 local last_status_update = 0
 local last_status_string
@@ -392,7 +392,7 @@ local wscoro = coroutine.create(function()
 	end
 end)
 
-local poll_input_filter <const> = owf_set_active_input_filter and compareversions(owf_get_build_version(), "2021.12.15.00.15") < 0 -- older builds don't log "InitMapping ... and filter"
+local poll_input_filter <const> = owf_set_active_input_filter and compareversions(owf_get_build_version(), "2021.12.15.00.15") < 0 and compareversions(owf_get_build_version(), "2016.11.11.17.46") >= 0 -- older builds don't log "InitMapping ... and filter", before U19, there is no GetInputFilter to poll
 local last_input_filter
 while pcall(yield) do
 	if os.millis() - last_status_update >= 40 then

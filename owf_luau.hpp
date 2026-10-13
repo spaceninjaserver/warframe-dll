@@ -299,12 +299,12 @@ inline Object* lua51_pushobject_inlined(luau_State* L, Object* obj)
 		L->outtop()++;
 		return nullptr;
 	}
-	auto handle = *reinterpret_cast<uint8_t**>(reinterpret_cast<uintptr_t>(obj) + 0x28);
+	auto handle = *reinterpret_cast<uint8_t**>(reinterpret_cast<uintptr_t>(obj) + (game_version >= GV(19, 0, 0) ? 0x28 : 0x18));
 	auto ud = lua51_newuserdata(L, 0x20);
 	*reinterpret_cast<void**>(ud + 0x18) = handle;
 	*reinterpret_cast<void**>(ud + 0x10) = ud + 0x18;
 	++*reinterpret_cast<int32_t*>(handle + 8);
-	auto comp = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(obj) + 0x10);
+	auto comp = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(obj) + (game_version >= GV(19, 0, 0) ? 0x10 : 0x08));
 	auto type = (*reinterpret_cast<void*(***)(void*)>(comp))[0x40 / 8](comp);
 	*reinterpret_cast<void**>(ud) = type;
 	*reinterpret_cast<uint32_t*>(ud + 8) = 2;

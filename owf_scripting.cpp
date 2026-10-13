@@ -914,6 +914,10 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
+		if (lua_isnil(L, 1))
+		{
+			luaL_error(L, "not available in this version"); // ivkr_find_method/ivkr_find_global found nothing
+		}
 		const auto f = lua_checkpointer<luau_CFunction>(L, 1);
 		const auto nargs = (int)luaL_checkinteger(L, 2);
 
@@ -1143,6 +1147,34 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
+		const auto value = luau_L->getValue(luaL_checkinteger(L, 1));
+		const std::string target = luaL_checkstring(L, 2);
+		bool res = false;
+		if (value->isType(LUAU_USERDATA))
+		{
+			std::string name = value->getSwigTypeName();
+			for (int depth = 0; depth != 32 && !name.empty(); ++depth)
+			{
+				if (name.ends_with(" *"))
+				{
+					name.erase(name.size() - 2);
+				}
+				if (name == target)
+				{
+					res = true;
+					break;
+				}
+				const auto e = swig_types.find(soup::joaat::hash(name));
+				name = (e != swig_types.end() && e->second->parent_ptr_name && *e->second->parent_ptr_name) ? *e->second->parent_ptr_name : "";
+			}
+		}
+		lua_pushboolean(L, res);
+		return 1;
+	});
+	OWF_SET_GLOBAL(L, "ivkr_swig_is_a"); // walks SWIG base classes, for builds whose ObjectType has no GetParent (before U15.14.1)
+
+	lua_pushcfunction(L, [](lua_State* L) -> int
+	{
 		const auto tval = luau_L->getValue(luaL_checkinteger(L, 1));
 		lua_pushboolean(L, tval->isType(LUAU_LIGHTUSERDATA) || tval->isType(LUAU_USERDATA));
 		return 1;
@@ -1359,6 +1391,16 @@ owfScript::owfScript()
 		return 1;
 	});
 	OWF_SET_GLOBAL(L, "ivkr_find_method");
+
+	if (swig_names_are_strings)
+	{
+		lua_pushcfunction(L, [](lua_State* L) -> int
+		{
+			lua_pushpointer(L, find_method_entry(luaL_checkstring(L, 1)).as<void*>());
+			return 1;
+		});
+		OWF_SET_GLOBAL(L, "ivkr_find_named_entry"); // before U22.20, the globals table holds name pointers
+	}
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{

@@ -273,6 +273,17 @@ class ObjectType extends owfUserdata
 	end
 end
 
+local function has_type_parents()
+	return ivkr_find_method("ObjectType", "GetParent") ~= nil
+end
+
+local function is_class(type, name)
+	if has_type_parents() then
+		return type:isNameInHierarchy(name)
+	end
+	return ivkr_swig_is_a(-1, name)
+end
+
 class Object extends owfUserdata
 	__name = "Object"
 
@@ -311,6 +322,12 @@ class Object extends owfUserdata
 	end
 
 	function IsA(type)
+		if not has_type_parents() then
+			self:pushToIvkr()
+			local res = ivkr_swig_is_a(-1, type.name:match("[^/]+$"))
+			ivkr_pop(1)
+			return res
+		end
 		local htype = self:GetType()
 		repeat
 			if htype:GetFullName() == type.name then
@@ -394,6 +411,9 @@ class HumanPlayer extends Player
 
 	function IsFreeCameraLockedActive()
 		self:pushToIvkr()
+		if compareversions(owf_get_build_version(), "2018.05.17.16.28") < 0 then
+			return mem_read_i8(ivkr_pop_object() + 0x151) ~= 0 -- not bound up to U22.18, read the flag SetFreeCameraLocked writes
+		end
 		ivkr_call(ivkr_find_method("HumanPlayer", "IsFreeCameraLockedActive"), 1)
 		return ivkr_pop_bool()
 	end
@@ -544,21 +564,36 @@ class BaseEntity extends Object
 	__name = "BaseEntity"
 end
 
+local entity_classes <const> = { -- most derived first
+	{ "/Lotus/Types/Game/LotusNpcAvatar", || -> new LotusNpcAvatar() },
+	{ "/Lotus/Types/Game/LotusVehicleAvatar", || -> new LotusVehicleAvatar() },
+	{ "/Lotus/Types/Game/LotusAvatar", || -> new LotusAvatar() },
+	{ "/EE/Types/Effects/LensFlare", || -> new LensFlare() },
+	{ "/EE/Types/Effects/DynamicSky", || -> new DynamicSky() },
+	{ "/EE/Types/Engine/Effect", || -> new Effect() },
+	{ "/EE/Types/Engine/BaseMarkerInfo", || -> new BaseMarkerInfo() },
+	{ "/EE/Types/Engine/Decoration", || -> new Decoration() },
+}
+
 function ivkr_pop_entity()
 	if ivkr_type(-1) > 0 then
 		ivkr_push_value(-1)
 		ivkr_call(ivkr_find_method("Object", "GetType"), 1)
 		local type = new ObjectType()
+		if not has_type_parents() then
+			for entity_classes as e do
+				if ivkr_swig_is_a(-1, e[1]:match("[^/]+$")) then
+					return e[2]()
+				end
+			end
+			return new Entity()
+		end
 		repeat
-			switch type:GetFullName() do
-				case "/EE/Types/Engine/BaseMarkerInfo": return new BaseMarkerInfo()
-				case "/EE/Types/Engine/Effect": return new Effect()
-				case "/EE/Types/Effects/LensFlare": return new LensFlare()
-				case "/EE/Types/Engine/Decoration": return new Decoration()
-				case "/Lotus/Types/Game/LotusAvatar": return new LotusAvatar()
-				case "/Lotus/Types/Game/LotusNpcAvatar": return new LotusNpcAvatar()
-				case "/Lotus/Types/Game/LotusVehicleAvatar": return new LotusVehicleAvatar()
-				case "/EE/Types/Effects/DynamicSky": return new DynamicSky()
+			local name = type:GetFullName()
+			for entity_classes as e do
+				if e[1] == name then
+					return e[2]()
+				end
 			end
 			type = type:GetParent()
 		until not type
@@ -632,7 +667,7 @@ class Entity extends BaseEntity
 	function SetHealth(health)
 		self:pushToIvkr()
 		ivkr_push_int(health)
-		ivkr_call(ivkr_find_method("Entity", "SetHealth"), 2)
+		ivkr_call(ivkr_find_method("Entity", "SetHealth") or ivkr_find_method("BaseAvatar", "SetHealth"), 2)
 	end
 
 	function GetDrawOnTop()
@@ -762,8 +797,12 @@ class BaseAvatar extends Entity
 
 	function GetMaxHealth(scaled = true)
 		self:pushToIvkr()
-		ivkr_push_bool(scaled)
-		ivkr_call(ivkr_find_method("BaseAvatar", "GetMaxHealth"), 2)
+		local nargs = 1
+		if compareversions(owf_get_build_version(), "2015.03.26.16.15") >= 0 then
+			ivkr_push_bool(scaled)
+			nargs = 2
+		end
+		ivkr_call(ivkr_find_method("BaseAvatar", "GetMaxHealth"), nargs)
 		return math.tointeger(ivkr_pop_number())
 	end
 
@@ -818,8 +857,11 @@ class BaseAvatar extends Entity
 		self:pushToIvkr()
 		ivkr_call(ivkr_find_method("BaseAvatar", "MotionControl"), 1)
 		if ivkr_type(-1) > 0 do
+			ivkr_push_value(-1)
+			ivkr_call(ivkr_find_method("Object", "GetType"), 1)
+			local flight = is_class(new ObjectType(), "LotusSpaceFlightMotionController")
 			local motion = new MotionControllerBase()
-			if motion:GetType():isNameInHierarchy("LotusSpaceFlightMotionController") then
+			if flight then
 				motion:pushToIvkr()
 				return new LotusSpaceFlightMotionController()
 			end
@@ -1066,26 +1108,26 @@ class DamageControllerBase extends Object
 
 	function GetShield()
 		self:pushToIvkr()
-		ivkr_call(ivkr_find_method("DamageControllerBase", "GetShield"), 1)
+		ivkr_call(ivkr_find_method("DamageControllerBase", "GetShield") or ivkr_find_method("LotusDamageController", "GetShield"), 1)
 		return math.tointeger(ivkr_pop_number())
 	end
 
 	function SetShield(i)
 		self:pushToIvkr()
 		ivkr_push_int(i)
-		ivkr_call(ivkr_find_method("DamageControllerBase", "SetShield"), 2)
+		ivkr_call(ivkr_find_method("DamageControllerBase", "SetShield") or ivkr_find_method("LotusDamageController", "SetShield"), 2)
 	end
 
 	function GetMaxShield()
 		self:pushToIvkr()
-		ivkr_call(ivkr_find_method("DamageControllerBase", "GetMaxShield"), 1)
+		ivkr_call(ivkr_find_method("DamageControllerBase", "GetMaxShield") or ivkr_find_method("LotusDamageController", "GetMaxShield"), 1)
 		return math.tointeger(ivkr_pop_number())
 	end
 
 	function SetMaxShield(i)
 		self:pushToIvkr()
 		ivkr_push_int(i)
-		ivkr_call(ivkr_find_method("DamageControllerBase", "SetMaxShield"), 2)
+		ivkr_call(ivkr_find_method("DamageControllerBase", "SetMaxShield") or ivkr_find_method("LotusDamageController", "SetMaxShield"), 2)
 	end
 
 	function GetOverguardAmount()
@@ -2797,23 +2839,23 @@ class LotusProfileData extends owfUserdata
 	--__name = "LotusProfileData"
 
 	function SyncInventoryFromDB(callback)
-		ivkr_push_object(get_gamedata())
+		ivkr_push_gamedata()
 		if callback then
 			ivkr_push_callback(callback)
 		else
 			ivkr_push_string("WantsEndOfMatchPreview") -- Basically a no-op
 		end
-		ivkr_call(ivkr_find_method("LotusProfileData", "SyncInventoryFromDB"), 2)
+		ivkr_call(ivkr_find_method("LotusProfileData", "SyncInventoryFromDB") or ivkr_find_method("LotusGameSpecificProfileData", "SyncInventoryFromDB"), 2)
 	end
 
 	function SyncWorldStateFromDB(callback)
-		ivkr_push_object(get_gamedata())
+		ivkr_push_gamedata()
 		if callback then
 			ivkr_push_callback(callback)
 		else
 			ivkr_push_string("WantsEndOfMatchPreview") -- Basically a no-op
 		end
-		ivkr_call(ivkr_find_method("LotusProfileData", "SyncWorldStateFromDB"), 2)
+		ivkr_call(ivkr_find_method("LotusProfileData", "SyncWorldStateFromDB") or ivkr_find_method("LotusGameSpecificProfileData", "SyncWorldStateFromDB"), 2)
 	end
 end
 
@@ -2967,7 +3009,7 @@ function ivkr_find_global(name)
 	local res = ivkr_find_global_cache[name]
 	if not res then
 		local hash = ivkr_hash(name)
-		res = mem_read_i64(mem_scan_exe(string.format("%02X %02X %02X %02X 00 00 00 00", hash & 0xff, (hash >> 8) & 0xff, (hash >> 16) & 0xff, hash >> 24)) + 8)
+		res = mem_read_i64((ivkr_find_named_entry ? ivkr_find_named_entry(name) : mem_scan_exe(string.format("%02X %02X %02X %02X 00 00 00 00", hash & 0xff, (hash >> 8) & 0xff, (hash >> 16) & 0xff, hash >> 24))) + 8)
 		ivkr_find_global_cache[name] = res
 	end
 	return res
@@ -3059,13 +3101,16 @@ gRegion = {
 	function GetLocalPlayer()
 		ivkr_push_object(get_regionmgr())
 		ivkr_call(ivkr_find_method("RegionMgrImpl", "GetLocalPlayer"), 1)
+		if ivkr_type(-1) > 0 and not ivkr_find_method("RegionMgrImpl", "GetLocalPlayerAvatar") then
+			ivkr_call(ivkr_find_method("BaseAvatar", "GetPlayer"), 1)
+		end
 		if ivkr_type(-1) > 0 then
 			return new LotusHumanPlayer()
 		end
 	end,
 	function GetLocalPlayerAvatar()
 		ivkr_push_object(get_regionmgr())
-		ivkr_call(ivkr_find_method("RegionMgrImpl", "GetLocalPlayerAvatar"), 1)
+		ivkr_call(ivkr_find_method("RegionMgrImpl", "GetLocalPlayerAvatar") or ivkr_find_method("RegionMgrImpl", "GetPlayerAvatar"), 1)
 		if ivkr_type(-1) > 0 then
 			return ivkr_pop_entity()
 		end
@@ -3083,16 +3128,16 @@ gRegion = {
 		ivkr_push_value(-1)
 		ivkr_call(ivkr_find_method("Object", "GetType"), 1)
 		local type = new ObjectType()
-		if type:isNameInHierarchy("LotusAttractModeGameRules") then
+		if is_class(type, "LotusAttractModeGameRules") then
 			return new LotusAttractModeGameRules()
 		end
-		if type:isNameInHierarchy("LotusHubGameRules") then
+		if is_class(type, "LotusHubGameRules") then
 			return new LotusHubGameRules()
 		end
-		if type:isNameInHierarchy("LotusGameRules") then
+		if is_class(type, "LotusGameRules") then
 			return new LotusGameRules()
 		end
-		if type:isNameInHierarchy("GameRulesImpl") then
+		if is_class(type, "GameRulesImpl") then
 			return new GameRulesImpl()
 		end
 		return new Object()
@@ -3186,10 +3231,11 @@ setmetatable(_G, {
 		if name == "gGameRules" then
 			return gRegion:GetGameRules()
 		elseif name == "gGameData" then
-			if addr := get_gamedata() then
-				ivkr_push_object(addr)
+			ivkr_push_gamedata()
+			if ivkr_type(-1) > 0 then
 				return new LotusProfileData()
 			end
+			ivkr_pop(1)
 		elseif name == "gStarChart" then
 			local gr = gRegion:GetGameRules()
 			if gr instanceof LotusAttractModeGameRules then
@@ -3219,16 +3265,47 @@ gFlashMgr = {
 		ivkr_call(ivkr_find_method("FlashMgr", "GotoMovie"), 2)
 		return ivkr_pop_new(FlashInstance)
 	end,
+	function PushMovie(resource)
+		ivkr_push_object(get_flashmgr())
+		resource:pushToIvkr()
+		ivkr_call(ivkr_find_method("FlashMgr", "PushMovie"), 2)
+		return ivkr_pop_new(FlashInstance)
+	end,
 }
+
+local function ivkr_push_profilemgr()
+	if not ivkr_find_named_entry then
+		ivkr_push_object(get_profilemgr())
+		return
+	end
+	ivkr_push_global("gPlayerProfileMgr")
+	if ivkr_type(-1) <= 0 then -- not published on 14.0.0
+		ivkr_pop(1)
+		ivkr_call(ivkr_find_global("GetPlayerProfileMgr"), 0)
+	end
+end
+
+function ivkr_push_gamedata()
+	if addr := get_gamedata() then
+		ivkr_push_object(addr)
+	elseif not get_profilemgr() then
+		ivkr_push_profilemgr()
+		ivkr_push_int(0)
+		ivkr_call(ivkr_find_method("PlayerProfileMgr", "GetPlayerProfile"), 2)
+		ivkr_call(ivkr_find_method("PlayerProfile", "GetGameSpecificData"), 1)
+	else
+		ivkr_push_nil()
+	end
+end
 
 gPlayerProfileMgr = {
 	function IsLoggedIn()
-		ivkr_push_object(get_profilemgr())
+		ivkr_push_profilemgr()
 		ivkr_call(ivkr_find_method("PlayerProfileMgr", "IsLoggedIn"), 1)
 		return ivkr_pop_bool()
 	end,
 	function GetPlayerProfile(i)
-		ivkr_push_object(get_profilemgr())
+		ivkr_push_profilemgr()
 		ivkr_push_int(i)
 		ivkr_call(ivkr_find_method("PlayerProfileMgr", "GetPlayerProfile"), 2)
 		return ivkr_pop_new(PlayerProfile)
@@ -3335,6 +3412,9 @@ function chat_system_reply(text)
 end
 
 function chat_add_to_sent_history(text)
+	if compareversions(owf_get_build_version(), "2019.08.29.20.01") < 0 then -- older ChatRedux panel
+		return
+	end
 	if ivkr_push_chat_redux() then
 		ivkr_push_string("mPanelList")
 		assert(ivkr_gettable(-2) == IVKR_TABLE)
@@ -3659,6 +3739,9 @@ local t_functions = {
 		ivkr_pop(1)
 	end,
 	OpenScreen = function(name)
+		if name == "GenericSettings" and compareversions(owf_get_build_version(), "2018.06.14.23.21") < 0 then
+			return gFlashMgr:PushMovie(WeakResource("/Lotus/Interface/GenericSettings.swf"))
+		end
 		ivkr_push_global("_T")
 		ivkr_push_string("OpenScreen")
 		ivkr_gettable(-2)
