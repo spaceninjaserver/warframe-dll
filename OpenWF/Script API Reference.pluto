@@ -815,6 +815,7 @@ gFlashMgr
 	function GetTopMovieWithTextInput() end
 	function ExecuteToolMenuCommand(resource) end
 	function GotoMovie(resource) end
+	function PushMovie(resource) end
 
 gGameData
 	function SyncInventoryFromDB(callback) end
