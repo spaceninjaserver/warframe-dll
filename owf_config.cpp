@@ -430,6 +430,10 @@ void owfConfig::load()
 	{
 		overlay_compatibility_mode = os::isWine();
 	}
+	if (game_version < GV(25, 7, 0))
+	{
+		overlay_compatibility_mode = true;
+	}
 
 	if (auto it = config->reinterpretAsObj().findIt("keep_console_open"); it != config->reinterpretAsObj().end() && it->second->isBool())
 	{
