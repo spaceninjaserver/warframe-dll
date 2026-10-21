@@ -31,7 +31,7 @@ function wrap_archive($uncompressed)
 	$bin_str = pack_u64_dyn_bp(time());
 	$bin_str .= pack_u64_dyn_bp(strlen($uncompressed));
 	$bin_str .= gzdeflate($uncompressed, 9);
-	$bin_str .= joaat($uncompressed);
+	$bin_str .= pack("V", 0);
 	return $bin_str;
 }
 
