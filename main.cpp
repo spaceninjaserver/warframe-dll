@@ -568,6 +568,12 @@ static void replace_game_string(Str& str, const std::string& replacement)
 	str.setUnownedData(ps->data, ps->size);
 }
 
+#if SOUP_BITS == 64
+static DetourHook encstr_append_hook;
+static EncryptedString::AppendData* last_enc_str = nullptr;
+static std::string dec_buf;
+#endif
+
 template <typename Str>
 static void* game_http_request_detour(void* a1, uintptr_t request, void* a3)
 {
@@ -586,13 +592,25 @@ static void* game_http_request_detour(void* a1, uintptr_t request, void* a3)
 	const char* body_data = request_body.getData();
 	size_t body_size = request_body.getSize();
 	std::string body_buf;
+
+#if SOUP_BITS == 64
+	if (body_size != 0
+		&& !dec_buf.empty() && dec_buf[0] == '{'
+		&& body_data[0] != '{'
+		)
+	{
+		body_data = dec_buf.data();
+		body_size = dec_buf.size();
+	}
+#endif
+
 	RequestType rt = RT_NOT_CLASSIFIED;
 	process_game_http_request(uri, body_data, body_size, body_buf, rt);
 	std::string url_buf = uri.toString();
-	request_url.setUnownedData(url_buf.data(), url_buf.size());
+	replace_game_string(request_url, url_buf);
 	if (body_data != request_body.getData())
 	{
-		request_body.setUnownedData(body_data, body_size);
+		replace_game_string(request_body, std::string(body_data, body_size));
 	}
 
 	const auto ret = reinterpret_cast<decltype(&game_http_request_detour<Str>)>(game_http_request_hook.original)(a1, request, a3);
@@ -664,10 +682,6 @@ static void* game_http_request_detour(void* a1, uintptr_t request, void* a3)
 
 
 #if SOUP_BITS == 64
-static DetourHook encstr_append_hook;
-static EncryptedString::AppendData* last_enc_str = nullptr;
-static std::string dec_buf;
-
 static void encstr_append_detour(EncryptedString::AppendData* a1, int a2)
 {
 	//conout << "encstr_append: " << (void*)a1 << ", " << std::string(a1->data, a1->size) << std::endl;
@@ -1937,9 +1951,10 @@ static CompactDetourHook check_string_substitutions_hook;
 static void static_check_string_substitutions_detour(GameString* str, void* substitutions, GameString* loctag, bool dont_log)
 {
 	size_t size = 0;
-	if (const char* data = do_label_replacements(str->getData(), str->getSize(), loctag->getData(), loctag->getSize(), size))
+	const char* data = do_label_replacements(str->getData(), str->getSize(), loctag->getData(), loctag->getSize(), size);
+	if (data)
 	{
-		str->setUnownedData(data, size);
+		replace_game_string(*str, std::string(data, size));
 	}
 	else if (size == -1)
 	{
@@ -2077,13 +2092,20 @@ static unsigned int ObjectType_path_offset;
 static unsigned int ObjectType_name_offset;
 static unsigned int ObjectType_property_text_offset;
 
+[[nodiscard]] static bool is_data(const void* p) noexcept;
+
 static void get_object_type_name(ObjectType* objectType, const char*& path, const char*& name)
 {
 	const auto base = reinterpret_cast<uintptr_t>(objectType);
 	const auto path_entry = *reinterpret_cast<void**>(base + ObjectType_path_offset);
 	if (game_version >= GV(30, 7, 0)) // String handles; before that, C strings.
 	{
-		path = resolve_string_handle(path_entry ? *reinterpret_cast<uint32_t*>(path_entry) : 0);
+		uint32_t path_handle = 0;
+		if (path_entry && is_data(path_entry))
+		{
+			path_handle = *reinterpret_cast<uint32_t*>(path_entry);
+		}
+		path = resolve_string_handle(path_handle);
 		name = resolve_string_handle(*reinterpret_cast<uint32_t*>(base + ObjectType_name_offset));
 	}
 	else
@@ -2225,7 +2247,7 @@ static void handle_metadata_read(ObjectType* objectType, Str* str)
 			}
 			buf.append(text);
 		}
-		str->setUnownedData(buf.data(), buf.size());
+		replace_game_string(*str, buf);
 
 		if (!patch.is_implicit)
 		{
@@ -2243,16 +2265,24 @@ static void handle_metadata_read(ObjectType* objectType, Str* str)
 		});
 	}
 
-	if (should_write_to_console)
+	if (should_write_to_console || should_write_to_ee_log)
 	{
-		conout << "Reading metadata for " << path << name << "\n";
-	}
-	if (should_write_to_ee_log)
-	{
-		write_to_ee_log("[OpenWF] Reading metadata for ");
-		write_to_ee_log(path);
-		write_to_ee_log(name);
-		write_to_ee_log("\n", 1);
+		char line_buf[600];
+		const int n = snprintf(line_buf, sizeof(line_buf), "Reading metadata for %.*s%.*s\n",
+			256, path ? path : "", 256, name ? name : "");
+		if (n > 0)
+		{
+			const auto len = static_cast<size_t>(n < static_cast<int>(sizeof(line_buf)) ? n : static_cast<int>(sizeof(line_buf)) - 1);
+			if (should_write_to_console)
+			{
+				conout.write(line_buf, len);
+			}
+			if (should_write_to_ee_log)
+			{
+				write_to_ee_log("[OpenWF] ");
+				write_to_ee_log(line_buf, len);
+			}
+		}
 	}
 }
 
@@ -3373,9 +3403,15 @@ static SOUP_FORCEINLINE void create_all_hooks()
 			}
 		}
 
-		SOUP_IF_UNLIKELY (!encstr_append_hook.target || !encstr_discharge_hook.target)
+		SOUP_IF_UNLIKELY (!encstr_append_hook.target)
 		{
 			report_critical_failure(get_core_string("sigfailenc"));
+		}
+		if (!encstr_discharge_hook.target)
+		{
+#if LOGGING
+			conout << "encstr_discharge not found; plaintext is handled via dec_buf." << std::endl;
+#endif
 		}
 	}
 #endif
@@ -3646,8 +3682,17 @@ static SOUP_FORCEINLINE void create_all_hooks()
 #if DISABLE_XP_BASED_LEVEL_CAPPING
 	if (game_version >= GV(35, 5, 0))
 	{
-		SIG_INST("73 43 B2 05");
-		auto xp_based_level_jnb = Module(nullptr).range.scan(sig_inst);
+		Pointer xp_based_level_jnb;
+		if (game_version >= GV(44, 0, 0))
+		{
+			SIG_INST("73 42 B2 05");
+			xp_based_level_jnb = Module(nullptr).range.scan(sig_inst);
+		}
+		else
+		{
+			SIG_INST("73 43 B2 05");
+			xp_based_level_jnb = Module(nullptr).range.scan(sig_inst);
+		}
 #if LOGGING
 		conout << "xp_based_level_jnb = " << xp_based_level_jnb.as<void*>() << std::endl;
 #endif
@@ -4563,7 +4608,16 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	{
 		// "an operator is trying to ride "
 		Pointer operator_mount_fail;
-		if (game_version >= GV(38, 0, 0))
+		if (game_version >= GV(44, 0, 0))
+		{
+			SIG_INST("E8 ? ? ? ? 32 C0 48 8B 5C 24 40 48 8B 6C 24 48 48 8B 74 24 50 48 83 C4 30 5F C3");
+			operator_mount_fail = Module(nullptr).range.scan(sig_inst);
+			if (operator_mount_fail)
+			{
+				operator_mount_fail = operator_mount_fail.add(5); // skip call -> xor al,al
+			}
+		}
+		else if (game_version >= GV(38, 0, 0))
 		{
 			SIG_INST("32 C0 48 8B 5C 24 40 48 8B 74 24 48 48 83 C4 30 5F C3 B2 05");
 			operator_mount_fail = Module(nullptr).range.scan(sig_inst);
