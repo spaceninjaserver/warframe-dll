@@ -44,29 +44,31 @@ function parse_metadata_patches(str, filename)
 		return false
 	end
 	for linenum, line in str:split("\n") do
-		if line:startswith("$if ") then
-			conditions:insert(evaluate_condition(filename, linenum, line, line:sub(5)))
+		local stripped_line = line:strip()
+
+		if stripped_line:startswith("$if ") then
+			conditions:insert(evaluate_condition(filename, linenum, stripped_line, stripped_line:sub(5)) and conditions[#conditions])
 			continue
 		end
-		if line:startswith("$elseif ") then
+		if stripped_line:startswith("$elseif ") then
 			if #conditions == 1 then
 				print_to_console("[Metadata Patches] $elseif without matching $if")
 				print_to_console("[Metadata Patches] - Where: "..(filename ?? "?")..":"..linenum)
 			else
-				conditions[#conditions] = evaluate_condition(filename, linenum, line, line:sub(9))
+				conditions[#conditions] = evaluate_condition(filename, linenum, stripped_line, stripped_line:sub(9)) and conditions[#conditions - 1]
 			end
 			continue
 		end
-		if line:startswith("$else") then
+		if stripped_line:startswith("$else") then
 			if #conditions == 1 then
 				print_to_console("[Metadata Patches] $else without matching $if")
 				print_to_console("[Metadata Patches] - Where: "..(filename ?? "?")..":"..linenum)
-			else
+			elseif conditions[#conditions - 1] then
 				conditions[#conditions] = not conditions[#conditions]
 			end
 			continue
 		end
-		if line:startswith("$endif") then
+		if stripped_line:startswith("$endif") then
 			if #conditions == 1 then
 				print_to_console("[Metadata Patches] $endif without matching $if")
 				print_to_console("[Metadata Patches] - Where: "..(filename ?? "?")..":"..linenum)
@@ -99,7 +101,7 @@ function parse_metadata_patches(str, filename)
 			end
 			continue
 		end
-		line = line:strip()
+		line = stripped_line
 		ampersand = false
 		if line:startswith("&") then
 			ampersand = true
