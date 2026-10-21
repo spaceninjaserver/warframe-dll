@@ -13,7 +13,7 @@ protected:
 	bool loadArchive(const char* data, size_t size);
 public:
 	void loadBuiltinArchive();
-	static bool readHotfixHeader(const char* data, size_t size, uint64_t& timestamp);
+	static bool readHotfixHeader(const char* data, size_t size, uint32_t& hash);
 	bool loadHotfix(const char* data, size_t size);
 
 	const char* find(uint32_t key, size_t& out_len) const;
@@ -24,7 +24,7 @@ public:
 	const char* /*[16]*/ getExpectedCodeVersionForManifestHash(const char manifest_hash[22]) const;
 
 	uint8_t hotfix;
-	uint64_t timestamp;
+	uint32_t hash;
 protected:
 	std::unordered_map<uint32_t, std::string> data;
 };
