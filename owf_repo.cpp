@@ -15,14 +15,12 @@ using namespace soup;
 bool owfRepo::loadArchive(const char* data, size_t size)
 {
 	MemoryRefReader r(data, size);
-	r.u64_dyn_bp(this->timestamp);
+	r.u32_le(this->hash);
 	uint64_t decompressed_size = 0;
 	r.u64_dyn_bp(decompressed_size);
 	const auto result = deflate::decompress(data + r.getPosition(), size - r.getPosition(), decompressed_size);
-	r.skip(result.compressed_size);
-	uint32_t chksum;
-	r.u32_le(chksum);
-	SOUP_RETHROW_FALSE(joaat::hash(result.decompressed) != chksum);
+	//r.skip(result.compressed_size);
+	SOUP_RETHROW_FALSE(joaat::hash(result.decompressed) == this->hash);
 
 	MemoryRefReader tar_r(result.decompressed);
 	while (tar_r.hasMore())
@@ -44,14 +42,14 @@ bool owfRepo::loadArchive(const char* data, size_t size)
 	return true;
 }
 
-bool owfRepo::readHotfixHeader(const char* data, size_t size, uint64_t& timestamp)
+bool owfRepo::readHotfixHeader(const char* data, size_t size, uint32_t& hash)
 {
 	MemoryRefReader r(data, size);
 	uint32_t target_version_hash;
 	if (r.u32_le(target_version_hash) && target_version_hash == soup::joaat::compileTimeHash(BOOTSTRAPPER_TITLE))
 	{
 		r.skip(1);
-		r.u64_dyn_bp(timestamp);
+		r.u32_le(hash);
 		return true;
 	}
 	return false;

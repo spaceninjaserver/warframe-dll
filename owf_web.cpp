@@ -462,13 +462,13 @@ void start_builtin_http_server()
 				{
 					if (auto hotfix = string::fromFile("OpenWF/Hotfix.owf"); !hotfix.empty())
 					{
-						uint64_t timestamp;
-						if (!owfRepo::readHotfixHeader(hotfix.data(), hotfix.size(), timestamp))
+						uint32_t hash;
+						if (!owfRepo::readHotfixHeader(hotfix.data(), hotfix.size(), hash))
 						{
 							ServerWebService::sendText(s, "Failed to apply hotfix as it was made for a different DLL version");
 							break;
 						}
-						if (timestamp == g_repo.timestamp)
+						if (hash == g_repo.hash)
 						{
 							ServerWebService::sendText(s, "No changes");
 							break;
@@ -485,12 +485,12 @@ void start_builtin_http_server()
 					}
 					else
 					{
-						const auto prev_timestamp = g_repo.timestamp;
+						const auto prev_hash = g_repo.hash;
 						{
 							std::lock_guard lock(g_repo_mtx);
 							g_repo.loadBuiltinArchive();
 						}
-						if (g_repo.timestamp == prev_timestamp)
+						if (g_repo.hash == prev_hash)
 						{
 							ServerWebService::sendText(s, "No changes");
 							break;
