@@ -4058,7 +4058,7 @@ end
 
 return function(f)
 	owf_script_route_base = owf_script_get_name()
-	local is_bgscript = (owf_script_route_base == "OpenWF Background Script")
+	local is_bgscript = (owf_script_route_base == "Background Script")
 	if is_bgscript then
 		owf_script_route_base = "/"..owf_script_route_base
 	else
