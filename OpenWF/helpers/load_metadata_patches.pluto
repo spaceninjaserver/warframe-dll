@@ -4,25 +4,25 @@ local function malformed_line(filename, linenum, line)
 	print_to_console("[Metadata Patches] - What: "..line)
 end
 
-local function evaluate_condition(filename, linenum, line, cond)
+local function evaluate_should_skip(filename, linenum, line, cond)
 	local ok, ret = load("return "..cond, "condition", "t", $object(can_add_new_types, compareversions, owf_get_build_version))
 	if ok then
 		ok, ret = pcall(ok)
 		if ok then
-			return ret
+			return not ret
 		end
 	end
 	print_to_console("[Metadata Patches] $if condition errored: "..ret)
 	print_to_console("[Metadata Patches] - Where: "..(filename ?? "?")..":"..linenum)
 	print_to_console("[Metadata Patches] - What: "..line)
-	return false
+	return true
 end
 
 function parse_metadata_patches(str, filename)
 	local patches = {}
 	local patch = { keys = {}, prefix = "", replacements = {}, substitutions = {}, query_assignments = {}, appends = {} }
 	local ampersand = false
-	local conditions = { true }
+	local skipblocks = { false }
 	local function delimit_patch()
 		if #patch.keys ~= 0 then
 			patches:insert(patch)
@@ -47,37 +47,39 @@ function parse_metadata_patches(str, filename)
 		local stripped_line = line:strip()
 
 		if stripped_line:startswith("$if ") then
-			conditions:insert(evaluate_condition(filename, linenum, stripped_line, stripped_line:sub(5)) and conditions[#conditions])
+			local should_skip = evaluate_should_skip(filename, linenum, stripped_line, stripped_line:sub(5))
+			skipblocks:insert(skipblocks[#skipblocks] and 0 or should_skip)
 			continue
 		end
 		if stripped_line:startswith("$elseif ") then
-			if #conditions == 1 then
+			if #skipblocks == 1 then
 				print_to_console("[Metadata Patches] $elseif without matching $if")
 				print_to_console("[Metadata Patches] - Where: "..(filename ?? "?")..":"..linenum)
 			else
-				conditions[#conditions] = evaluate_condition(filename, linenum, stripped_line, stripped_line:sub(9)) and conditions[#conditions - 1]
+				local should_skip = evaluate_should_skip(filename, linenum, stripped_line, stripped_line:sub(9))
+				skipblocks[#skipblocks] = skipblocks[#skipblocks] == true ? should_skip : 0
 			end
 			continue
 		end
 		if stripped_line:startswith("$else") then
-			if #conditions == 1 then
+			if #skipblocks == 1 then
 				print_to_console("[Metadata Patches] $else without matching $if")
 				print_to_console("[Metadata Patches] - Where: "..(filename ?? "?")..":"..linenum)
-			elseif conditions[#conditions - 1] then
-				conditions[#conditions] = not conditions[#conditions]
+			else
+				skipblocks[#skipblocks] = skipblocks[#skipblocks] == true ? false : 0
 			end
 			continue
 		end
 		if stripped_line:startswith("$endif") then
-			if #conditions == 1 then
+			if #skipblocks == 1 then
 				print_to_console("[Metadata Patches] $endif without matching $if")
 				print_to_console("[Metadata Patches] - Where: "..(filename ?? "?")..":"..linenum)
 			else
-				conditions:remove()
+				skipblocks:remove()
 			end
 			continue
 		end
-		if not conditions[#conditions] then
+		if skipblocks[#skipblocks] then
 			continue
 		end
 
@@ -186,6 +188,10 @@ function parse_metadata_patches(str, filename)
 	end
 	if #patch.keys ~= 0 then
 		patches:insert(patch)
+	end
+	if #skipblocks ~= 1 then
+		print_to_console("[Metadata Patches] $if without matching $endif")
+		print_to_console("[Metadata Patches] - Where: "..(filename ?? "?"))
 	end
 	return patches
 end
