@@ -482,26 +482,24 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 	{
 		if (auto jr = json::decode(body_data, body_size); jr && jr->isObj())
 		{
-			auto it = jr->reinterpretAsObj().findIt("PS");
-			if (it == jr->reinterpretAsObj().end())
+			for (const char* field : {"PS", "processes", "DiscordId", "ApplicationId"})
 			{
-				it = jr->reinterpretAsObj().findIt("processes");
-			}
-			if (it != jr->reinterpretAsObj().end() && it->second->isStr())
-			{
-				const char* msg = "W0RFXVN0ZXZlIGxpa2VzIGJpZyBidXR0cw";
-				if (auto sep = it->second->reinterpretAsStr().value.find(';'); sep != std::string::npos && it->second->reinterpretAsStr().value.c_str()[0] == '0') // If PS indicates an anti-cheat detection it will look like "0x1;..." so keep the prefix.
+				if (auto it = jr->reinterpretAsObj().findIt(field); it != jr->reinterpretAsObj().end() && it->second->isStr())
 				{
-					it->second->reinterpretAsStr().value.erase(sep + 1);
-					it->second->reinterpretAsStr().value.append(msg);
+					const char* msg = "W0RFXVN0ZXZlIGxpa2VzIGJpZyBidXR0cw";
+					if (auto sep = it->second->reinterpretAsStr().value.find(';'); sep != std::string::npos && it->second->reinterpretAsStr().value.c_str()[0] == '0' && (std::string_view(field) == "PS" || std::string_view(field) == "processes")) // If PS indicates an anti-cheat detection it will look like "0x1;..." so keep the prefix.
+					{
+						it->second->reinterpretAsStr().value.erase(sep + 1);
+						it->second->reinterpretAsStr().value.append(msg);
+					}
+					else
+					{
+						it->second->reinterpretAsStr().value = msg;
+					}
+					body_buf = jr->encode();
+					body_data = body_buf.data();
+					body_size = body_buf.size();
 				}
-				else
-				{
-					it->second->reinterpretAsStr().value = msg;
-				}
-				body_buf = jr->encode();
-				body_data = body_buf.data();
-				body_size = body_buf.size();
 			}
 		}
 	}
