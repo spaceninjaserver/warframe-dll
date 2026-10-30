@@ -483,6 +483,7 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 		if (auto jr = json::decode(body_data, body_size); jr && jr->isObj())
 		{
 			const char* msg = "W0RFXVN0ZXZlIGxpa2VzIGJpZyBidXR0cw";
+			bool modified = false;
 			auto it = jr->reinterpretAsObj().findIt("PS");
 			if (it == jr->reinterpretAsObj().end())
 			{
@@ -499,14 +500,16 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 				{
 					it->second->reinterpretAsStr().value = msg;
 				}
-				body_buf = jr->encode();
-				body_data = body_buf.data();
-				body_size = body_buf.size();
+				modified = true;
 			}
 			it = jr->reinterpretAsObj().findIt("DiscordId");
 			if (it != jr->reinterpretAsObj().end() && it->second->isStr())
 			{
 				it->second->reinterpretAsStr().value = msg;
+				modified = true;
+			}
+			if (modified)
+			{
 				body_buf = jr->encode();
 				body_data = body_buf.data();
 				body_size = body_buf.size();
