@@ -1824,6 +1824,76 @@ static Str* get_profile_dir_detour(uintptr_t a1)
 }
 
 
+static DetourHook settings_decrypt_hook;
+static DetourHook settings_encrypt_hook;
+
+static bool is_unencrypted_settings(const GameByteBuffer* buf)
+{
+	const uint8_t* data = buf->getData();
+	const size_t size = buf->getSize();
+	if (size == 0)
+	{
+		return false;
+	}
+	for (size_t i = 0; i != std::min<size_t>(size, 16); ++i)
+	{
+		if (data[i] < 0x20 && data[i] != '\n' && data[i] != '\r' && data[i] != '\t')
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+template <typename Str>
+static bool settings_decrypt_detour(void* a1, Str* name, GameByteBuffer* in, GameByteBuffer* out)
+{
+	if (name->getSize() != 8 || memcmp(name->getData(), "settings", 8) != 0)
+	{
+		return reinterpret_cast<decltype(&settings_decrypt_detour<Str>)>(settings_decrypt_hook.original)(a1, name, in, out);
+	}
+	const size_t size = in->getSize();
+	if (size < in->getCapacity() && is_unencrypted_settings(in))
+	{
+		in->getData()[size] = 0;
+		in->resize(size + 1);
+		std::swap(*in, *out);
+	}
+	else if (!reinterpret_cast<decltype(&settings_decrypt_detour<Str>)>(settings_decrypt_hook.original)(a1, name, in, out))
+	{
+		return false;
+	}
+	if (game_version < GV(16, 5, 0))
+	{
+		// Fix for "Won't boot if you last booted a recent version" issue
+		// Newer builds save "gameData=/Lotus/Types/Game/LotusProfileData" into settings file
+		// Builds before 16.5.0 don't have this type (their profile data type is /Lotus/Types/Game/LotusGameSpecificProfileData), so when such a build reads settings file it fails to load gameData.
+		constexpr std::string_view line = "gameData=/Lotus/Types/Game/LotusProfileData\n";
+		const std::string_view text(reinterpret_cast<const char*>(out->getData()), out->getSize());
+		for (size_t pos = text.find(line); pos != std::string_view::npos; pos = text.find(line, pos + 1))
+		{
+			if (pos == 0 || text[pos - 1] == '\n')
+			{
+				memmove(out->getData() + pos, out->getData() + pos + line.size(), text.size() - pos - line.size());
+				out->resize(text.size() - line.size());
+				break;
+			}
+		}
+	}
+	return true;
+}
+
+template <typename Str>
+static bool settings_encrypt_detour(void* a1, Str* name, GameByteBuffer* in, GameByteBuffer* out)
+{
+	if (unencrypted_settings && name->getSize() == 8 && memcmp(name->getData(), "settings", 8) == 0)
+	{
+		return false;
+	}
+	return reinterpret_cast<decltype(&settings_encrypt_detour<Str>)>(settings_encrypt_hook.original)(a1, name, in, out);
+}
+
+
 static CompactDetourHook lua_AvatarEntry_excludedFromSimulacrum_get_hook;
 
 static int lua_AvatarEntry_excludedFromSimulacrum_get_detour(luau_State* L)
@@ -4015,32 +4085,69 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 #if !MINIMAL_HOOKS
-	if (!forced_profile_dir.empty() || PRIVATE)
+	if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/get_profile_dir.json"), game_version); !sig_inst.bytes.empty())
 	{
-		if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/get_profile_dir.json"), game_version); !sig_inst.bytes.empty())
-		{
-			auto get_profile_dir = Module(nullptr).range.scan(sig_inst);
+		auto get_profile_dir = Module(nullptr).range.scan(sig_inst);
 #if LOGGING
-			conout << "get_profile_dir = " << get_profile_dir.as<void*>() << std::endl;
+		conout << "get_profile_dir = " << get_profile_dir.as<void*>() << std::endl;
 #endif
-			SOUP_IF_LIKELY (get_profile_dir)
+		SOUP_IF_LIKELY (get_profile_dir)
+		{
+			if (!forced_profile_dir.empty())
 			{
-				if (!forced_profile_dir.empty())
-				{
-					get_profile_dir_hook.detour = GAME_STRING_FN(get_profile_dir_detour);
-					get_profile_dir_hook.target = get_profile_dir.as<void*>();
-					//get_profile_dir_hook.create();
-					get_profile_dir_hook.enable();
-				}
-				get_profile_dir_offset = get_profile_dir.add(g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/get_profile_dir_offset_insn.json"), game_version)).as<uint32_t&>();
+				get_profile_dir_hook.detour = GAME_STRING_FN(get_profile_dir_detour);
+				get_profile_dir_hook.target = get_profile_dir.as<void*>();
+				//get_profile_dir_hook.create();
+				get_profile_dir_hook.enable();
+			}
+			get_profile_dir_offset = get_profile_dir.add(g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/get_profile_dir_offset_insn.json"), game_version)).as<uint32_t&>();
 #if LOGGING
-				conout << "get_profile_dir_offset = " << get_profile_dir_offset << std::endl;
+			conout << "get_profile_dir_offset = " << get_profile_dir_offset << std::endl;
+#endif
+
+			const uintptr_t get_profile_dir_addr = get_profile_dir.as<uintptr_t>();
+			auto get_profile_dir_vtable_entry = Module(nullptr).range.scan(Pattern(reinterpret_cast<const char*>(&get_profile_dir_addr), "xxxxxxxx"));
+#if LOGGING
+			conout << "get_profile_dir_vtable_entry = " << get_profile_dir_vtable_entry.as<void*>() << std::endl;
+#endif
+			Pointer settings_loader_null_byte_check;
+			size_t je_offset = 0;
+			if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/settings_loader_null_byte_check.json"), game_version); !sig_inst.bytes.empty())
+			{
+				settings_loader_null_byte_check = Module(nullptr).range.scan(sig_inst);
+				je_offset = sig_inst.bytes.size() - 2;
+			}
+#if LOGGING
+			conout << "settings_loader_null_byte_check = " << settings_loader_null_byte_check.as<void*>() << std::endl;
+#endif
+			SOUP_IF_LIKELY (get_profile_dir_vtable_entry && settings_loader_null_byte_check)
+			{
+				auto je = settings_loader_null_byte_check.add(je_offset).as<uint8_t*>();
+				memGuard::setAllowedAccess(je, 6, memGuard::ACC_RWX);
+				memset(je, 0x90, 6);
+
+				const auto decrypt_slot = g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/settings_decrypt_vtable_slot.json"), game_version);
+				settings_decrypt_hook.detour = GAME_STRING_FN(settings_decrypt_detour);
+				settings_decrypt_hook.target = get_profile_dir_vtable_entry.sub(decrypt_slot).as<void*&>();
+				settings_decrypt_hook.create();
+				settings_decrypt_hook.enable();
+				settings_encrypt_hook.detour = GAME_STRING_FN(settings_encrypt_detour);
+				settings_encrypt_hook.target = get_profile_dir_vtable_entry.sub(decrypt_slot + 8).as<void*&>();
+				settings_encrypt_hook.create();
+				settings_encrypt_hook.enable();
+#if LOGGING
+				conout << "settings_decrypt = " << settings_decrypt_hook.target << std::endl;
+				conout << "settings_encrypt = " << settings_encrypt_hook.target << std::endl;
 #endif
 			}
 			else
 			{
-				conout << get_core_string("sigfailfpd") << std::endl;
+				log_optional_scan_failure(false);
 			}
+		}
+		else
+		{
+			conout << get_core_string("sigfailfpd") << std::endl;
 		}
 	}
 #endif

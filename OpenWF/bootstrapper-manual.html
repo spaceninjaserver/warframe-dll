@@ -107,6 +107,7 @@
 		<li><code>logout_on_request_failure</code> — If false, the game will ignore HTTP request failures/timeouts instead of forcing a logout.</li>
 		<li><code>fov_override</code> — If not 0, overrides the game's FOV setting. You can use any value from 1 to 226.</li>
 		<li><code>forced_profile_dir</code> — An absolute path to a folder that will be used to read and write your game settings. Notably, this can be used to have the same settings regardless of username.</li>
+		<li><code>unencrypted_settings</code> — If true, the game settings file (<code>settings</code> in the profile dir) is saved as plain text so it can be edited by hand. An existing encrypted file is converted the next time the game saves its settings. Plain text settings files are always loaded, even if this is false, and get encrypted again on the next save.</li>
 		<li><code>auto_start_scripts</code> — A list of scripts to automatically start.</li>
 		<li><code>alternative_loading</code> — Enables an alternative loading mode (<code>Server.FastLoad</code>) which also skips daily tribute and intro cutscenes when loading into a relay. However, this breaks some parts of The New War and possibly other missions. Does nothing in versions before U33.</li>
 		<li><code>save_all_metadata</code> — If true, implicitly creates an empty patch on every metadata read to make it available for get_effective_metadata requests. May degrade performance.</li>

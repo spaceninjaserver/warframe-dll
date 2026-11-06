@@ -38,6 +38,7 @@ inline bool disable_profanity_filter;
 inline bool logout_on_request_failure;
 inline float fov_override;
 inline std::string forced_profile_dir;
+inline bool unencrypted_settings;
 inline std::vector<std::string> auto_start_scripts;
 inline bool alternative_loading;
 inline bool save_all_metadata;
