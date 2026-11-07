@@ -482,6 +482,8 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 	{
 		if (auto jr = json::decode(body_data, body_size); jr && jr->isObj())
 		{
+			const char* msg = "W0RFXVN0ZXZlIGxpa2VzIGJpZyBidXR0cw";
+			bool modified = false;
 			auto it = jr->reinterpretAsObj().findIt("PS");
 			if (it == jr->reinterpretAsObj().end())
 			{
@@ -489,7 +491,6 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 			}
 			if (it != jr->reinterpretAsObj().end() && it->second->isStr())
 			{
-				const char* msg = "W0RFXVN0ZXZlIGxpa2VzIGJpZyBidXR0cw";
 				if (auto sep = it->second->reinterpretAsStr().value.find(';'); sep != std::string::npos && it->second->reinterpretAsStr().value.c_str()[0] == '0') // If PS indicates an anti-cheat detection it will look like "0x1;..." so keep the prefix.
 				{
 					it->second->reinterpretAsStr().value.erase(sep + 1);
@@ -499,6 +500,16 @@ static void process_game_http_request(soup::Uri& uri, const char*& body_data, si
 				{
 					it->second->reinterpretAsStr().value = msg;
 				}
+				modified = true;
+			}
+			it = jr->reinterpretAsObj().findIt("DiscordId");
+			if (it != jr->reinterpretAsObj().end() && it->second->isStr())
+			{
+				it->second->reinterpretAsStr().value = msg;
+				modified = true;
+			}
+			if (modified)
+			{
 				body_buf = jr->encode();
 				body_data = body_buf.data();
 				body_size = body_buf.size();
