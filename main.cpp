@@ -1502,6 +1502,53 @@ static int lua_FlashMgr_GetConfigBool_detour(luau_State* L)
 	return lua_FlashMgr_GetConfigBool_og(L);
 }
 
+static luau_CFunction lua_FlashMgr_GetConfigFloat_og;
+
+static luau_TValue* cephalon_tear_check_base = nullptr;
+static int cephalon_tear_check_faction_tag_calls = 0;
+
+static int lua_FlashMgr_GetConfigFloat_detour(luau_State* L)
+{
+	const int i = (game_version >= GV(43, 0, 0)) ? 0 : 1;
+	SOUP_IF_LIKELY (L->intop()[i].isType(LUAU_STRING))
+	{
+		if (game_version >= GV(39, 0, 0))
+		{
+			if (strcmp(L->intop()[i].getString(), "LotusGameRules.CephalonTearForcedSpawnInterval") == 0)
+			{
+				cephalon_tear_check_base = L->ci()[-1].base;
+				cephalon_tear_check_faction_tag_calls = 0;
+			}
+		}
+	}
+	return lua_FlashMgr_GetConfigFloat_og(L);
+}
+
+static luau_CFunction lua_LotusMissionInfo_GetFactionTag_og;
+static luau_CFunction lua_LotusMissionInfo_faction_get = nullptr;
+
+static int lua_LotusMissionInfo_GetFactionTag_detour(luau_State* L)
+{
+	const int ret = lua_LotusMissionInfo_GetFactionTag_og(L);
+	if (cephalon_tear_check_base)
+	{
+		if (L->ci()[-1].base != cephalon_tear_check_base)
+		{
+			cephalon_tear_check_base = nullptr;
+		}
+		else if (++cephalon_tear_check_faction_tag_calls == 2)
+		{
+			cephalon_tear_check_base = nullptr;
+			if (!lua_LotusMissionInfo_faction_get)
+			{
+				lua_LotusMissionInfo_faction_get = swig_types.at(soup::joaat::hash("LotusMissionInfo"))->findGetter(wf_hash("faction"));
+			}
+			L->outtop()--; // pop Symbol
+			return lua_LotusMissionInfo_faction_get(L);
+		}
+	}
+	return ret;
+}
 
 static bool force_disable_overlay;
 static bool did_console_to_overlay_transition = false;
@@ -3907,6 +3954,48 @@ static SOUP_FORCEINLINE void create_all_hooks()
 			lua_FlashMgr_GetConfigBool_og = *lua_FlashMgr_GetConfigBool_fp;
 			memGuard::setAllowedAccess(lua_FlashMgr_GetConfigBool_fp, sizeof(void*), memGuard::ACC_READ | memGuard::ACC_WRITE);
 			*lua_FlashMgr_GetConfigBool_fp = lua_FlashMgr_GetConfigBool_detour;
+		}
+		else
+		{
+			log_optional_scan_failure(false);
+		}
+	}
+#endif
+
+#if !MINIMAL_HOOKS
+	if (game_version >= GV(33, 0, 0))
+	{
+		auto lua_FlashMgr_GetConfigFloat_hash = Module(nullptr).range.scan(hash_to_pattern(wf_hash("GetConfigFloat"), wf_hash("SetConfigFloat")));
+#if LOGGING
+		conout << "lua_FlashMgr_GetConfigFloat_hash = " << lua_FlashMgr_GetConfigFloat_hash.as<void*>() << std::endl;
+#endif
+		SOUP_IF_LIKELY (lua_FlashMgr_GetConfigFloat_hash)
+		{
+			auto lua_FlashMgr_GetConfigFloat_fp = lua_FlashMgr_GetConfigFloat_hash.add(8).as<luau_CFunction*>();
+			lua_FlashMgr_GetConfigFloat_og = *lua_FlashMgr_GetConfigFloat_fp;
+			memGuard::setAllowedAccess(lua_FlashMgr_GetConfigFloat_fp, sizeof(void*), memGuard::ACC_READ | memGuard::ACC_WRITE);
+			*lua_FlashMgr_GetConfigFloat_fp = lua_FlashMgr_GetConfigFloat_detour;
+		}
+		else
+		{
+			log_optional_scan_failure(false);
+		}
+	}
+#endif
+
+#if !MINIMAL_HOOKS
+	if (game_version >= GV(33, 0, 0))
+	{
+		auto lua_LotusMissionInfo_GetFactionTag_hash = find_method_entry("GetFactionTag");
+#if LOGGING
+		conout << "lua_LotusMissionInfo_GetFactionTag_hash = " << lua_LotusMissionInfo_GetFactionTag_hash.as<void*>() << std::endl;
+#endif
+		SOUP_IF_LIKELY (lua_LotusMissionInfo_GetFactionTag_hash)
+		{
+			auto lua_LotusMissionInfo_GetFactionTag_fp = lua_LotusMissionInfo_GetFactionTag_hash.add(8).as<luau_CFunction*>();
+			lua_LotusMissionInfo_GetFactionTag_og = *lua_LotusMissionInfo_GetFactionTag_fp;
+			memGuard::setAllowedAccess(lua_LotusMissionInfo_GetFactionTag_fp, sizeof(void*), memGuard::ACC_READ | memGuard::ACC_WRITE);
+			*lua_LotusMissionInfo_GetFactionTag_fp = lua_LotusMissionInfo_GetFactionTag_detour;
 		}
 		else
 		{
