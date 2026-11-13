@@ -4085,69 +4085,82 @@ static SOUP_FORCEINLINE void create_all_hooks()
 	}
 
 #if !MINIMAL_HOOKS
-	if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/get_profile_dir.json"), game_version); !sig_inst.bytes.empty())
+	if (!forced_profile_dir.empty() || PRIVATE)
 	{
-		auto get_profile_dir = Module(nullptr).range.scan(sig_inst);
-#if LOGGING
-		conout << "get_profile_dir = " << get_profile_dir.as<void*>() << std::endl;
-#endif
-		SOUP_IF_LIKELY (get_profile_dir)
+		if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/get_profile_dir.json"), game_version); !sig_inst.bytes.empty())
 		{
-			if (!forced_profile_dir.empty())
-			{
-				get_profile_dir_hook.detour = GAME_STRING_FN(get_profile_dir_detour);
-				get_profile_dir_hook.target = get_profile_dir.as<void*>();
-				//get_profile_dir_hook.create();
-				get_profile_dir_hook.enable();
-			}
-			get_profile_dir_offset = get_profile_dir.add(g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/get_profile_dir_offset_insn.json"), game_version)).as<uint32_t&>();
+			auto get_profile_dir = Module(nullptr).range.scan(sig_inst);
 #if LOGGING
-			conout << "get_profile_dir_offset = " << get_profile_dir_offset << std::endl;
+			conout << "get_profile_dir = " << get_profile_dir.as<void*>() << std::endl;
 #endif
-
-			const uintptr_t get_profile_dir_addr = get_profile_dir.as<uintptr_t>();
-			auto get_profile_dir_vtable_entry = Module(nullptr).range.scan(Pattern(reinterpret_cast<const char*>(&get_profile_dir_addr), "xxxxxxxx"));
-#if LOGGING
-			conout << "get_profile_dir_vtable_entry = " << get_profile_dir_vtable_entry.as<void*>() << std::endl;
-#endif
-			Pointer settings_loader_null_byte_check;
-			size_t je_offset = 0;
-			if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/settings_loader_null_byte_check.json"), game_version); !sig_inst.bytes.empty())
+			SOUP_IF_LIKELY (get_profile_dir)
 			{
-				settings_loader_null_byte_check = Module(nullptr).range.scan(sig_inst);
-				je_offset = sig_inst.bytes.size() - 2;
-			}
+				if (!forced_profile_dir.empty())
+				{
+					get_profile_dir_hook.detour = GAME_STRING_FN(get_profile_dir_detour);
+					get_profile_dir_hook.target = get_profile_dir.as<void*>();
+					//get_profile_dir_hook.create();
+					get_profile_dir_hook.enable();
+				}
+				get_profile_dir_offset = get_profile_dir.add(g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/get_profile_dir_offset_insn.json"), game_version)).as<uint32_t&>();
 #if LOGGING
-			conout << "settings_loader_null_byte_check = " << settings_loader_null_byte_check.as<void*>() << std::endl;
-#endif
-			SOUP_IF_LIKELY (get_profile_dir_vtable_entry && settings_loader_null_byte_check)
-			{
-				auto je = settings_loader_null_byte_check.add(je_offset).as<uint8_t*>();
-				memGuard::setAllowedAccess(je, 6, memGuard::ACC_RWX);
-				memset(je, 0x90, 6);
-
-				const auto decrypt_slot = g_repo.getVersionedU64(soup::joaat::compileTimeHash("OpenWF/vv/off/settings_decrypt_vtable_slot.json"), game_version);
-				settings_decrypt_hook.detour = GAME_STRING_FN(settings_decrypt_detour);
-				settings_decrypt_hook.target = get_profile_dir_vtable_entry.sub(decrypt_slot).as<void*&>();
-				settings_decrypt_hook.create();
-				settings_decrypt_hook.enable();
-				settings_encrypt_hook.detour = GAME_STRING_FN(settings_encrypt_detour);
-				settings_encrypt_hook.target = get_profile_dir_vtable_entry.sub(decrypt_slot + 8).as<void*&>();
-				settings_encrypt_hook.create();
-				settings_encrypt_hook.enable();
-#if LOGGING
-				conout << "settings_decrypt = " << settings_decrypt_hook.target << std::endl;
-				conout << "settings_encrypt = " << settings_encrypt_hook.target << std::endl;
+				conout << "get_profile_dir_offset = " << get_profile_dir_offset << std::endl;
 #endif
 			}
 			else
 			{
-				log_optional_scan_failure(false);
+				conout << get_core_string("sigfailfpd") << std::endl;
 			}
+		}
+	}
+
+	if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/settings_decrypt.json"), game_version); !sig_inst.bytes.empty())
+	{
+		auto settings_decrypt = Module(nullptr).range.scan(sig_inst);
+#if LOGGING
+		conout << "settings_decrypt = " << settings_decrypt.as<void*>() << std::endl;
+#endif
+		Pointer settings_decrypt_vtable_entry;
+		if (settings_decrypt)
+		{
+			const uintptr_t settings_decrypt_addr = settings_decrypt.as<uintptr_t>();
+			settings_decrypt_vtable_entry = Module(nullptr).range.scan(Pattern(reinterpret_cast<const char*>(&settings_decrypt_addr), "xxxxxxxx"));
+		}
+#if LOGGING
+		conout << "settings_decrypt_vtable_entry = " << settings_decrypt_vtable_entry.as<void*>() << std::endl;
+#endif
+		Pointer settings_loader_null_byte_check;
+		size_t je_offset = 0;
+		if (auto sig_inst = g_repo.getVersionedPattern(soup::joaat::compileTimeHash("OpenWF/vv/sig/settings_loader_null_byte_check.json"), game_version); !sig_inst.bytes.empty())
+		{
+			settings_loader_null_byte_check = Module(nullptr).range.scan(sig_inst);
+			je_offset = sig_inst.bytes.size() - 2;
+		}
+#if LOGGING
+		conout << "settings_loader_null_byte_check = " << settings_loader_null_byte_check.as<void*>() << std::endl;
+#endif
+		SOUP_IF_LIKELY (settings_decrypt_vtable_entry && settings_loader_null_byte_check)
+		{
+			auto je = settings_loader_null_byte_check.add(je_offset).as<uint8_t*>();
+			memGuard::setAllowedAccess(je, 6, memGuard::ACC_RWX);
+			memset(je, 0x90, 6);
+
+			settings_decrypt_hook.detour = GAME_STRING_FN(settings_decrypt_detour);
+			settings_decrypt_hook.target = settings_decrypt.as<void*>();
+			settings_decrypt_hook.create();
+			settings_decrypt_hook.enable();
+			// settings_encrypt is always the vtable slot right before settings_decrypt
+			settings_encrypt_hook.detour = GAME_STRING_FN(settings_encrypt_detour);
+			settings_encrypt_hook.target = settings_decrypt_vtable_entry.sub(sizeof(void*)).as<void*&>();
+			settings_encrypt_hook.create();
+			settings_encrypt_hook.enable();
+#if LOGGING
+			conout << "settings_encrypt = " << settings_encrypt_hook.target << std::endl;
+#endif
 		}
 		else
 		{
-			conout << get_core_string("sigfailfpd") << std::endl;
+			log_optional_scan_failure(false);
 		}
 	}
 #endif
