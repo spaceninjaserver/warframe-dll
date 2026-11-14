@@ -3706,16 +3706,6 @@ ivkr_typename = function(idx)
 	return ivkr_pop_string()
 end
 
-function ivkr_push_global(name)
-	local bv = owf_get_build_version()
-	if compareversions(bv, "2025.10.14.16.10") >= 0 or (compareversions(bv, "2020.08.12.19.57") >= 0 and compareversions(bv, "2023.02.13.10.22") < 0) then -- Lua 5.1 with wf_fnv_1 also keys globals by hash
-		ivkr_push_int_as_bool(ivkr_hash(name))
-	else
-		ivkr_push_string(name)
-	end
-	ivkr_gettable(-10002)
-end
-
 local t_functions = {
 	AddHudTracker = function(name, type)
 		ivkr_push_global("_T")
@@ -3770,6 +3760,10 @@ local t_functions = {
 _T = setmetatable({}, {
 	function __index(name)
 		ivkr_push_global("_T")
+		if ivkr_type(-1) ~= IVKR_TABLE then -- not yet created, e.g. on the login screen
+			ivkr_pop(1)
+			return nil
+		end
 		ivkr_push_string(name)
 		if ivkr_gettable(-2) > 0 then
 			if func := t_functions[name] then

@@ -1550,6 +1550,60 @@ static int lua_LotusMissionInfo_GetFactionTag_detour(luau_State* L)
 	return ret;
 }
 
+static luau_CFunction lua_FlashInstance_ClearInterpolations_og;
+static luau_CFunction lua_ObjectType_GetFullName = nullptr;
+
+static int lua_FlashInstance_ClearInterpolations_detour(luau_State* L)
+{
+	const bool is_xp = L->outtop()[-1].isType(LUAU_STRING) && std::string_view(L->outtop()[-1].getString()).ends_with(".XP");
+	const int ret = lua_FlashInstance_ClearInterpolations_og(L);
+	if (game_version < GV(35, 0, 0) || !is_xp
+		|| !luau_next || !luau_gettable || !luau_settable || !luau_pushstring || !luau_pushcclosurek || !luauD_call
+		|| L->stack_last() - L->outtop() < 8
+		|| !L->ci()[-1].base->isType(LUAU_TABLE)
+		)
+	{
+		return ret;
+	}
+
+	const luau_TValue& state = *L->ci()[-1].base;
+	const luau_TValue syndicate = luau_rawgetfield(L, state, "Syndicate");
+	if (!syndicate.isType(LUAU_BOOL) || !syndicate.value.as_bool
+		|| !luau_rawgetfield(L, state, "BackgroundIconPos").isType(LUAU_NIL)
+		)
+	{
+		return ret;
+	}
+	const luau_TValue icon = luau_rawgetfield(L, state, "Icon");
+
+	const auto state_offset = luau_savestack(L, L->ci()[-1].base); // offset, not pointer: the calls below can reallocate the stack
+	*L->outtop()++ = *luau_restorestack(L, state_offset);
+	luau_pushstring(L, "BackgroundIconPos");
+
+	luau_require(L, "Lotus.Interface.LotusUtilities");
+	luau_pushstring(L, "GetSyndicateBackgroundAlignments");
+	luau_gettable(L, -2);
+	L->outtop()[-2] = L->outtop()[-1]; // replace the module with the function
+	L->outtop()--;
+	if (!L->outtop()[-1].isType(LUAU_FUNCTION))
+	{
+		L->outtop() -= 3;
+		return ret;
+	}
+
+	if (!lua_ObjectType_GetFullName)
+	{
+		lua_ObjectType_GetFullName = swig_types.at(soup::joaat::hash("ObjectType"))->findMethod(wf_hash("GetFullName"));
+	}
+	luau_pushcclosurek(L, lua_ObjectType_GetFullName, "GetFullName", 0, nullptr);
+	*L->outtop()++ = icon;
+	luau_call(L, 1, 1);
+	luau_call(L, 1, 1);
+	luau_settable(L, -3);
+	L->outtop()--;
+	return ret;
+}
+
 static bool force_disable_overlay;
 static bool did_console_to_overlay_transition = false;
 
@@ -3975,6 +4029,27 @@ static SOUP_FORCEINLINE void create_all_hooks()
 			lua_FlashMgr_GetConfigFloat_og = *lua_FlashMgr_GetConfigFloat_fp;
 			memGuard::setAllowedAccess(lua_FlashMgr_GetConfigFloat_fp, sizeof(void*), memGuard::ACC_READ | memGuard::ACC_WRITE);
 			*lua_FlashMgr_GetConfigFloat_fp = lua_FlashMgr_GetConfigFloat_detour;
+		}
+		else
+		{
+			log_optional_scan_failure(false);
+		}
+	}
+#endif
+
+#if !MINIMAL_HOOKS
+	if (game_version >= GV(33, 0, 0))
+	{
+		auto lua_FlashInstance_ClearInterpolations_hash = find_method_entry("ClearInterpolations");
+#if LOGGING
+		conout << "lua_FlashInstance_ClearInterpolations_hash = " << lua_FlashInstance_ClearInterpolations_hash.as<void*>() << std::endl;
+#endif
+		SOUP_IF_LIKELY (lua_FlashInstance_ClearInterpolations_hash)
+		{
+			auto lua_FlashInstance_ClearInterpolations_fp = lua_FlashInstance_ClearInterpolations_hash.add(8).as<luau_CFunction*>();
+			lua_FlashInstance_ClearInterpolations_og = *lua_FlashInstance_ClearInterpolations_fp;
+			memGuard::setAllowedAccess(lua_FlashInstance_ClearInterpolations_fp, sizeof(void*), memGuard::ACC_READ | memGuard::ACC_WRITE);
+			*lua_FlashInstance_ClearInterpolations_fp = lua_FlashInstance_ClearInterpolations_detour;
 		}
 		else
 		{

@@ -132,7 +132,13 @@ struct luau_CallInfo
 	luau_StkId base;
 	luau_StkId func;
 	luau_StkId top;
+	const void* savedpc;
+	int nresults;
+	unsigned int flags;
 };
+#if SOUP_BITS == 64
+static_assert(sizeof(luau_CallInfo) == 0x28);
+#endif
 
 #define luau_savestack(L, p) ((char*)(p) - (char*)L->stack())
 #define luau_restorestack(L, n) ((luau_TValue*)((char*)L->stack() + (n)))
@@ -272,6 +278,16 @@ inline luau_settable_t luau_settable = nullptr;
 using luauD_call_t = int(*)(luau_State* L, luau_TValue* func, int nresults);
 inline luauD_call_t luauD_call = nullptr;
 
+inline void luau_call(luau_State* L, int nargs, int nresults)
+{
+	const auto func_offset = luau_savestack(L, L->outtop() - (nargs + 1)); // offset, not pointer: the call can reallocate the stack
+	luauD_call(L, luau_restorestack(L, func_offset), nresults);
+	if (nresults >= 0)
+	{
+		L->outtop() = luau_restorestack(L, func_offset) + nresults;
+	}
+}
+
 using lua51_pushcclosure_t = void(*)(luau_State* L, luau_CFunction func, int nup);
 inline lua51_pushcclosure_t lua51_pushcclosure = nullptr;
 
@@ -331,6 +347,54 @@ inline std::string luau_error_msg;
 
 using wf_hash_t = uint32_t(*)(const char*);
 inline wf_hash_t wf_hash; // owfScript::init
+
+inline void luau_push_global(luau_State* L, const char* name)
+{
+	if (memcmp(build_version, "2025.10.14.16.10", 16) >= 0
+		|| (memcmp(build_version, "2020.08.12.19.57", 16) >= 0 && memcmp(build_version, "2023.02.13.10.22", 16) < 0) // Lua 5.1 with wf_fnv_1 also keys globals by hash
+		)
+	{
+		L->outtop()->value.as_bool = wf_hash(name);
+		L->outtop()->setType(LUAU_BOOL);
+		L->outtop()++;
+		luau_gettable(L, -10002); // LUA_GLOBALSINDEX
+		if (!L->outtop()[-1].isType(LUAU_NIL))
+		{
+			return;
+		}
+		L->outtop()--; // some globals (e.g. _T in Lua 5.1 builds) are still keyed by name
+	}
+	luau_pushstring(L, name);
+	luau_gettable(L, -10002); // LUA_GLOBALSINDEX
+}
+
+inline luau_TValue luau_rawgetfield(luau_State* L, const luau_TValue& table, const char* key)
+{
+	luau_TValue value;
+	value.setType(LUAU_NIL);
+	*L->outtop()++ = table;
+	L->outtop()->setType(LUAU_NIL);
+	L->outtop()++;
+	while (luau_next(L, -2))
+	{
+		if (L->outtop()[-2].isType(LUAU_STRING) && strcmp(L->outtop()[-2].getString(), key) == 0)
+		{
+			value = L->outtop()[-1];
+			L->outtop() -= 2;
+			break;
+		}
+		L->outtop()--;
+	}
+	L->outtop()--;
+	return value;
+}
+
+inline void luau_require(luau_State* L, const char* name)
+{
+	luau_push_global(L, "require");
+	luau_pushstring(L, name);
+	luau_call(L, 1, 1);
+}
 
 inline bool swig_names_are_strings = false; // before 2018.05.17.16.28 SWIG tables hold name pointers, not hashes
 

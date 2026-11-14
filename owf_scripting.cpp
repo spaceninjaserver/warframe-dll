@@ -1203,6 +1203,31 @@ owfScript::owfScript()
 
 	lua_pushcfunction(L, [](lua_State* L) -> int
 	{
+		SOUP_IF_UNLIKELY (!luau_gettable)
+		{
+			luaL_error(L, "Function unavailable");
+		}
+		SOUP_IF_UNLIKELY (luau_L->outtop() == luau_L->stack_last())
+		{
+			luaL_error(L, "insufficient space");
+		}
+		const char* name = luaL_checkstring(L, 1);
+		const luau_CallState call_state(luau_L);
+		try
+		{
+			luau_push_global(luau_L, name);
+		}
+		catch (const int&)
+		{
+			call_state.restore();
+			luaL_error(L, luau_error_msg.c_str());
+		}
+		return 0;
+	});
+	OWF_SET_GLOBAL(L, "ivkr_push_global");
+
+	lua_pushcfunction(L, [](lua_State* L) -> int
+	{
 		SOUP_IF_UNLIKELY (!luau_createtable)
 		{
 			luaL_error(L, "Function unavailable");
@@ -1676,7 +1701,7 @@ owfScript::owfScript()
 		const luau_CallState call_state(luau_L);
 		__try
 		{
-			luauD_call(luau_L, luau_restorestack(luau_L, call_top_offset), nresults);
+			luau_call(luau_L, (int)nargs, (int)nresults);
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
@@ -1685,10 +1710,10 @@ owfScript::owfScript()
 			{
 				luau_error_msg = "low-level exception";
 			}
-		}
-		SOUP_IF_LIKELY (nresults >= 0)
-		{
-			luau_L->outtop() = luau_restorestack(luau_L, call_top_offset) + nresults;
+			SOUP_IF_LIKELY (nresults >= 0)
+			{
+				luau_L->outtop() = luau_restorestack(luau_L, call_top_offset) + nresults;
+			}
 		}
 		SOUP_IF_UNLIKELY (!luau_error_msg.empty())
 		{
