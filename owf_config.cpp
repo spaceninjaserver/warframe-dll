@@ -331,6 +331,15 @@ void owfConfig::load()
 #endif
 	}
 
+	if (auto it = config->reinterpretAsObj().findIt("unencrypted_settings"); it != config->reinterpretAsObj().end() && it->second->isBool())
+	{
+		unencrypted_settings = it->second->reinterpretAsBool().value;
+	}
+	else
+	{
+		unencrypted_settings = false;
+	}
+
 	if (auto it = config->reinterpretAsObj().findIt("ee_log_in_console"); it != config->reinterpretAsObj().end() && it->second->isBool())
 	{
 		ee_log_in_console = it->second->reinterpretAsBool().value;
@@ -473,6 +482,7 @@ void owfConfig::save()
 	config.add("logout_on_request_failure", logout_on_request_failure);
 	config.add("fov_override", fov_override);
 	config.add("forced_profile_dir", forced_profile_dir);
+	config.add("unencrypted_settings", unencrypted_settings);
 	{
 		auto arr = soup::make_unique<JsonArray>();
 		for (const auto& path : auto_start_scripts)

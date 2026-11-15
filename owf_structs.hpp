@@ -178,6 +178,39 @@ struct LegacyGameStringU18
 
 #define GAME_STRING_FN(fn) (game_version >= GV(35, 5, 0) ? reinterpret_cast<void*>(&fn<GameString>) : game_version >= GV(19, 0, 0) ? reinterpret_cast<void*>(&fn<LegacyGameString>) : reinterpret_cast<void*>(&fn<LegacyGameStringU18>))
 
+union GameByteBuffer
+{
+	struct
+	{
+		uint8_t* begin;
+		uint8_t* end;
+		uint8_t* capacity;
+	} legacy;
+	struct
+	{
+		uint8_t* data;
+		uint32_t size;
+		uint32_t capacity;
+	} current;
+
+	[[nodiscard]] static bool isCurrent() noexcept { return game_version >= GV(31, 6, 0); }
+	[[nodiscard]] uint8_t* getData() const noexcept { return isCurrent() ? current.data : legacy.begin; }
+	[[nodiscard]] size_t getSize() const noexcept { return isCurrent() ? current.size : (legacy.end - legacy.begin); }
+	[[nodiscard]] size_t getCapacity() const noexcept { return isCurrent() ? current.capacity : (legacy.capacity - legacy.begin); }
+
+	void resize(size_t size) noexcept
+	{
+		if (isCurrent())
+		{
+			current.size = static_cast<uint32_t>(size);
+		}
+		else
+		{
+			legacy.end = legacy.begin + size;
+		}
+	}
+};
+
 // Objects
 
 struct ObjectTypeName
